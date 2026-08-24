@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Telegram session
+*.session
+*.session-journal
+
+# Google Drive auth
+credentials.json
+token.json
+
+# Download temporary
+downloads/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
