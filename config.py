@@ -20,6 +20,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # task yang lagi jalan (request_id -> ctx dict), dan riwayat singkat task yang
 # udah selesai/gagal/dibatalin -- dipakai buat /status
 task_registry = {}
+pending_upload = {}
 task_history = deque(maxlen=20)
 
 app = Client(

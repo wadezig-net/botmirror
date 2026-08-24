@@ -13,7 +13,10 @@ def get_system_stats():
     disk = psutil.disk_usage("/")
 
     now = time.monotonic()
-    net = psutil.net_io_counters()
+    try:
+        net = psutil.net_io_counters()
+    except PermissionError:
+        net = type("N", (), {"bytes_recv": 0, "bytes_sent": 0})()
     down_speed = up_speed = 0.0
     if _net_state["t"] is not None:
         dt = max(now - _net_state["t"], 0.001)

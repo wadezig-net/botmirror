@@ -1,39 +1,123 @@
 import re
+import json
+import os
 
 
-def clean_filename(name):
-    name = re.sub(r'[\\/*?:"<>|]', "", name)
-    return name[:100]
+USER_DB = "database/users.json"
 
 
-def get_progress_bar(percent, total_blocks=10):
-    try:
-        filled = int(float(percent) / 100 * total_blocks)
-    except (ValueError, TypeError):
-        filled = 0
-    filled = max(0, min(total_blocks, filled))
-    return "■" * filled + "□" * (total_blocks - filled)
+def load_users():
+    if not os.path.exists(USER_DB):
+        return {
+            "owner": [],
+            "admins": [],
+            "premium": []
+        }
+
+    with open(USER_DB, "r") as f:
+        return json.load(f)
 
 
-def format_bytes(n):
-    n = n or 0
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if n < 1024:
-            return f"{n:.2f}{unit}" if unit != "B" else f"{n:.0f}{unit}"
-        n /= 1024
-    return f"{n:.2f}PB"
+def save_users(data):
+    with open(USER_DB, "w") as f:
+        json.dump(data, f, indent=4)
 
 
-def format_speed(bytes_per_sec):
-    return format_bytes(bytes_per_sec) + "/s"
+def is_admin(user_id):
+    data = load_users()
+
+    return (
+        user_id in data["owner"]
+        or user_id in data["admins"]
+    )
+
+
+def is_premium(user_id):
+    data = load_users()
+
+    return (
+        user_id in data["owner"]
+        or user_id in data["admins"]
+        or user_id in data["premium"]
+    )
+
+def get_progress_bar(current, total=None):
+    if total is not None:
+        if total == 0:
+            percent = 0
+        else:
+            percent = (current / total) * 100
+    else:
+        percent = current
+
+    length = 10
+
+    filled = int(length * percent / 100)
+
+    bar = "█" * filled + "░" * (length - filled)
+
+    return f"[{bar}] {percent:.1f}%"
+
+
+
+def format_bytes(size):
+
+    if size == 0:
+        return "0 B"
+
+    units = [
+        "B",
+        "KB",
+        "MB",
+        "GB",
+        "TB"
+    ]
+
+    index = 0
+
+    while size >= 1024 and index < len(units)-1:
+        size /= 1024
+        index += 1
+
+    return f"{size:.2f} {units[index]}"
+
 
 
 def format_duration(seconds):
-    seconds = max(0, int(seconds))
-    h, rem = divmod(seconds, 3600)
-    m, s = divmod(rem, 60)
+
+    seconds = int(seconds)
+
+    h = seconds // 3600
+    m = (seconds % 3600)//60
+    s = seconds % 60
+
     if h:
-        return f"{h}h{m}m{s}s"
+        return f"{h}h {m}m {s}s"
+
     if m:
-        return f"{m}m{s}s"
+        return f"{m}m {s}s"
+
     return f"{s}s"
+
+def format_speed(speed):
+
+    if speed is None:
+        return "0 B/s"
+
+    if speed == 0:
+        return "0 B/s"
+
+    units = [
+        "B/s",
+        "KB/s",
+        "MB/s",
+        "GB/s"
+    ]
+
+    index = 0
+
+    while speed >= 1024 and index < len(units)-1:
+        speed /= 1024
+        index += 1
+
+    return f"{speed:.2f} {units[index]}"

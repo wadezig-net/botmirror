@@ -10,6 +10,9 @@ import handlers.menu
 import handlers.status_cmd
 import handlers.cancel
 import handlers.mirror
+import handlers.upload_select
+import handlers.remove
+import handlers.admin
 
 
 async def register_commands(client):
@@ -19,8 +22,11 @@ async def register_commands(client):
         BotCommand("mirror", "Mirror URL atau reply ke pesan/media"),
         BotCommand("m", "Alias singkat buat /mirror"),
         BotCommand("status", "Lihat task aktif & riwayat"),
+        BotCommand("rm", "Hapus file yang sudah di upload"),
         BotCommand("help", "Panduan penggunaan bot"),
-        BotCommand("donate", "Dukung pengembangan bot"),
+        BotCommand("donate", "Dukung dong pengembangan bot ini"),
+        BotCommand("addpremium", "Tambah user premium"),
+        BotCommand("delpremium", "Hapus user premium"),
     ])
 
     # tombol "Menu" di sebelah ikon stiker/attach -- tap sekali langsung
@@ -31,7 +37,7 @@ async def register_commands(client):
 async def main():
     await app.start()
     await register_commands(app)
-    print("Bot berjalan...")
+    print("Bot running cuy...")
     await asyncio.Event().wait()  # jalan terus sampai proses dihentikan
 
 

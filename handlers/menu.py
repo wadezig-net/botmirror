@@ -6,9 +6,9 @@ from config import app
 # ganti dengan link/nomor donasi kamu sendiri
 DONATE_TEXT = (
     "☕ Dukung Pengembangan Bot Ini\n\n"
-    "Kalau bot ini membantu, kamu bisa traktir developer-nya lewat:\n"
-    "🔗 https://saweria.co/ganti-username-kamu\n\n"
-    "Setiap dukungan sangat berarti untuk biaya server & maintenance 🙏"
+    "Kalau bot ini membantu, kamu bisa donasi developer @waaadezig lewat:\n"
+    "Scan Qris , Dana, atau Transfer Bank hehe\n"
+    "Setiap dukungan sangat berarti untuk biaya server & maintenance (ngopi juga) 🙏"
 )
 
 HELP_TEXT = (
@@ -36,7 +36,7 @@ def main_menu_keyboard():
 async def start(client, message):
     await message.reply(
         "🤖 **Mirror Bot Aktif**\n\n"
-        "Kirim `/mirror URL`, atau reply ke pesan/media dengan `/mirror`. "
+        "Kirim `/mirror link , /m link , atau reply ke pesan/media dengan `/mirror`. "
         "Ketuk tombol di bawah buat panduan lengkap.",
         reply_markup=main_menu_keyboard(),
     )
