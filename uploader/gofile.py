@@ -9,11 +9,9 @@ from utils import format_duration
 
 
 async def upload_to_gofile(downloaded_file, ctx):
-    """Upload file ke GoFile dengan progress bar + speed, lalu return link download-nya."""
+    """Upload file ke GoFile dengan progress bar + speed, lalu return data hasil upload."""
     total_size = os.path.getsize(downloaded_file)
 
-    # pastikan status "mulai upload" kelihatan duluan (sebelumnya bisa "keskip"
-    # kalau upload cepat/kebetulan ketiban update lain sebelum sempat ke-render)
     await render_status(ctx, "Upload", percent=0.0, processed=0, total=total_size)
 
     loop = asyncio.get_running_loop()
@@ -58,4 +56,35 @@ async def upload_to_gofile(downloaded_file, ctx):
     if result.get("status") != "ok":
         raise Exception(f"Upload GoFile gagal: {result}")
 
-    return result["data"]["downloadPage"]
+    data = result["data"]
+    return {
+        "link": data.get("downloadPage"),
+        "file_id": data.get("id") or data.get("fileId"),
+        "guest_token": data.get("guestToken"),
+    }
+
+
+def delete_from_gofile(file_id, token):
+    """Hapus file dari GoFile pakai contentId + token (guestToken atau akun)."""
+    if not file_id or not token:
+        raise Exception("Data file_id/token tidak lengkap, kemungkinan upload lama sebelum fitur ini ada.")
+
+    resp = requests.delete(
+        "https://api.gofile.io/contents",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={"contentsId": file_id},
+        timeout=30,
+    )
+
+    try:
+        result = resp.json()
+    except ValueError:
+        raise Exception(f"Respon tidak valid dari GoFile (HTTP {resp.status_code}): {resp.text[:200]}")
+
+    if result.get("status") != "ok":
+        raise Exception(f"GoFile menolak hapus: {result}")
+
+    return True

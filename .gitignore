@@ -2,7 +2,10 @@
 __pycache__/
 *.pyc
 venv/
+.venv/
 .env
+test_*.py
+test.txt
 
 # Telegram session
 *.session
@@ -14,9 +17,53 @@ token.json
 
 # Download temporary
 downloads/
+*.mp4
+*.mkv
+*.zip
+*.rar
+downloads/
 
 # Logs
 *.log
+upload_history.json
 
 # OS
 .DS_Store
+
+
+# virtual environment
+venv/
+.venv/
+
+# secrets
+.env
+token.json
+credentials.json
+
+# database & history
+database/
+upload_history.json
+
+# temp test
+test_*.py
+test.txt
+
+# media
+*.mp4
+*.mkv
+*.zip
+*.rar
+downloads/
+
+modified: mirrorbot.session
+modified: mirrorbot.session-journal
+
+node_modules/
+
+modified: config.py
+# Telegram session
+*.session
+*.session-journal
+
+# Node
+node_modules/

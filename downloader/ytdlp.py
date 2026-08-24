@@ -2,10 +2,13 @@ import os
 import re
 import time
 import asyncio
+import sys
 from urllib.parse import urlparse
 
 from config import COOKIE_FILE
 from status_ui import render_status
+
+YTDLP_BIN = os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "yt-dlp")
 
 # regex buat baris progress yt-dlp, contoh:
 # [download]  45.2% of  120.50MiB at    2.34MiB/s ETA 00:30
@@ -55,7 +58,7 @@ async def download_via_url(url, work_dir, ctx):
     output_template = f"{work_dir}/%(title)s.%(ext)s"
 
     cmd = [
-        "/usr/local/bin/yt-dlp",
+        YTDLP_BIN,
         "--js-runtimes", "node",
         "--remote-components", "ejs:npm",
         "-f", "bestvideo[height<=1080]+bestaudio/best",
