@@ -9,11 +9,11 @@ API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-BASE_DIR = "/root/wadezig"
+BASE_DIR = "/root/botmirror"
 DOWNLOAD_DIR = f"{BASE_DIR}/downloads"
 COOKIE_FILE = f"{BASE_DIR}/cookies.txt"
 SFILE_SCRIPT = f"{BASE_DIR}/scripts/sfile_download.js"
-NODE_BIN = "/root/.local/share/pi-node/node-v22.23.2-linux-x64/bin/node"
+NODE_BIN = "/usr/bin/node"
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 

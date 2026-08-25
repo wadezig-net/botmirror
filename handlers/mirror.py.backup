@@ -7,6 +7,7 @@ import asyncio
 
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram import filters
 
 from utils import is_premium
 from config import app, DOWNLOAD_DIR, task_registry, task_history, pending_upload
@@ -34,36 +35,46 @@ def extract_url(message):
 
 @app.on_message(filters.command(["m", "mirror"]))
 async def mirror(client, message):
-    print(message.from_user.id)
 
+    print(message.from_user.id)
+    
     if not is_premium(message.from_user.id):
         username = (
-            f"@{message.from_user.username}"
+        
+        f"@{message.from_user.username}"
             if message.from_user.username
             else "Tidak ada username"
-        )
+    )
+
         return await message.reply(
             f"❌ Maaf ya Anda belum memiliki akses premium.\n\n"
             f"👤 Username: {username}\n"
             f"🆔 User ID: `{message.from_user.id}`\n\n"
             f"Silahkan hubungi owner @waaadezig untuk aktivasi."
-        )
+    )
 
     url = extract_url(message)
+
     replied = message.reply_to_message
-    has_media = bool(
-        replied and (
-            replied.photo or replied.video or replied.document or
-            replied.audio or replied.animation or replied.voice or
-            replied.video_note or replied.sticker
+
+    has_media = (
+        replied
+        and (
+            replied.photo
+            or replied.video
+            or replied.document
+            or replied.audio
+            or replied.voice
+            or replied.video_note
+            or replied.sticker
         )
     )
 
     if not url and not has_media:
         await message.reply(
-            "❌ Nggak ada yang bisa di-mirror\n\n"
-            "Gunakan: `/mirror URL`\n"
-            "atau reply ke pesan/media/forward yang ada link atau file-nya dengan `/mirror`"
+            "❌ Ngga ada yang bisa di-mirror\n\n"
+            "Gunakan: /mirror URL\n"
+            "atau reply ke pesan/media/forward yang ada"
         )
         return
 
@@ -71,20 +82,25 @@ async def mirror(client, message):
     work_dir = os.path.join(DOWNLOAD_DIR, request_id)
     os.makedirs(work_dir, exist_ok=True)
 
-    rename_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Rename File", callback_data=f"rename_yes:{request_id}")],
-        [InlineKeyboardButton("⏩ Pakai Nama Asli", callback_data=f"rename_no:{request_id}")],
-    ])
-
-    upload_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("☁️ GoFile", callback_data=f"upload_gofile:{request_id}")],
-        [InlineKeyboardButton("📁 Google Drive", callback_data=f"upload_gdrive:{request_id}")],
-    ])
+    upload_keyboard = InlineKeyboardMarkup(
+    [
+        [
+            InlineKeyboardButton(
+                "☁️ GoFile",
+                callback_data=f"upload_gofile:{request_id}"
+            ),
+            InlineKeyboardButton(
+                "☁️ Google Drive",
+                callback_data=f"upload_gdrive:{request_id}"
+            ),
+        ]
+    ]
+)
 
     status_msg = await message.reply(
-        "📁 Pilih nama file:",
-        reply_markup=rename_keyboard,
-    )
+    "📤 Pilih tujuan upload:",
+    reply_markup=upload_keyboard
+)
 
     ctx = {
         "status": status_msg,
@@ -99,6 +115,7 @@ async def mirror(client, message):
         "percent": 0.0,
         "task": asyncio.current_task(),
     }
+
     task_registry[request_id] = ctx
 
     pending_upload[request_id] = {
@@ -107,6 +124,6 @@ async def mirror(client, message):
         "work_dir": work_dir,
         "ctx": ctx,
         "message": message,
-        "filename": None,
-        "upload_keyboard": upload_keyboard,
     }
+
+    return

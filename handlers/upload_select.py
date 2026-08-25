@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import shutil
 
@@ -11,6 +12,8 @@ from downloader.telegram_dl import download_from_telegram
 from uploader.gofile import upload_to_gofile
 from uploader.gdrive import upload_to_gdrive
 from uploader.history import add_entry
+
+SAFE_NAME_RE = re.compile(r"[\\/\0]")
 
 
 @app.on_callback_query(filters.regex(r"^upload_(gofile|gdrive):"))
@@ -55,6 +58,15 @@ async def upload_select(client, callback_query):
                 ctx
             )
 
+        # terapkan rename kalau user sempat pilih rename & ketik nama baru,
+        # ekstensi asli tetap dipertahankan biar file tidak rusak
+        if task.get("filename"):
+            base, ext = os.path.splitext(downloaded_file)
+            safe_name = SAFE_NAME_RE.sub("", task["filename"]).strip()
+            if safe_name:
+                new_path = os.path.join(work_dir, f"{safe_name}{ext}")
+                os.rename(downloaded_file, new_path)
+                downloaded_file = new_path
 
         ctx["title"] = os.path.basename(downloaded_file)
 
@@ -79,29 +91,16 @@ async def upload_select(client, callback_query):
 
         short_id = uuid.uuid4().hex[:6]
 
+        entry = {
+            "type": "gofile" if upload_type == "upload_gofile" else "gdrive",
+            "file_id": upload_result.get("file_id"),
+            "guest_token": upload_result.get("guest_token"),
+            "name": os.path.basename(downloaded_file),
+            "user_id": ctx["user_id"],
+            "link": upload_result.get("link"),
+        }
 
-        add_entry(
-            short_id,
-            {
-                "type": "gofile",
-                "file_id": upload_result.get("file_id"),
-                "guest_token": upload_result.get("guest_token"),
-                "name": os.path.basename(downloaded_file),
-                "user_id": ctx["user_id"],
-                "link": upload_result.get("link"),
-            }
-        )
-
-        add_entry(
-            short_id,
-            {
-                "type": "gdrive",
-                "file_id": upload_result.get("file_id"),
-                "name": os.path.basename(downloaded_file),
-                "user_id": ctx["user_id"],
-                "link": upload_result.get("link"),
-            }
-        )
+        add_entry(short_id, entry)
 
         await message.reply(
             "✅ Mirror selesai\n\n"
@@ -120,6 +119,17 @@ async def upload_select(client, callback_query):
 
 
     finally:
+
+        try:
+            await ctx["status"].delete()
+        except Exception:
+            pass
+
+        for m in task.get("extra_messages", []):
+            try:
+                await m.delete()
+            except Exception:
+                pass
 
         pending_upload.pop(request_id, None)
         task_registry.pop(request_id, None)

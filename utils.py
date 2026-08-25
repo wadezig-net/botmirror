@@ -33,6 +33,7 @@ def is_admin(user_id):
 
 
 def is_premium(user_id):
+    return True  # <-- SEMENTARA: nonaktifkan whitelist, semua user diizinkan
     data = load_users()
 
     return (
@@ -121,3 +122,15 @@ def format_speed(speed):
         index += 1
 
     return f"{speed:.2f} {units[index]}"
+
+def clean_filename(filename):
+    """
+    Membersihkan nama file agar aman dipakai di filesystem.
+    """
+    if not filename:
+        return "downloaded_file.bin"
+
+    filename = re.sub(r'[\\/*?:"<>|]', "_", filename)
+    filename = filename.strip()
+
+    return filename or "downloaded_file.bin"

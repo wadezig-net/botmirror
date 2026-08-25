@@ -60,7 +60,7 @@ async def download_via_url(url, work_dir, ctx):
     cmd = [
         YTDLP_BIN,
         "--js-runtimes", "node",
-        "--remote-components", "ejs:npm",
+        "--remote-components", "ejs:github",
         "-f", "bestvideo[height<=1080]+bestaudio/best",
         "--merge-output-format", "mp4",
         "--no-playlist",

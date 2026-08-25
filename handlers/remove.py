@@ -2,6 +2,7 @@ from pyrogram import filters
 
 from config import app
 from uploader.gofile import delete_from_gofile
+from uploader.gdrive import delete_from_gdrive
 from uploader.history import get_entry, remove_entry, list_by_user
 
 
@@ -20,8 +21,9 @@ async def remove_file(client, message):
 
         lines = ["🗑 File yang bisa dihapus:\n"]
         for short_id, entry in entries.items():
-            lines.append(f"`{short_id}` — {entry.get('name', 'unknown')}")
-        lines.append("\nHapus dengan: `/remove <id>`")
+            provider = entry.get("provider", "gofile")
+            lines.append(f"`{short_id}` — {entry.get('name', 'unknown')} ({provider})")
+        lines.append("\nHapus dengan: `/rm <id>`")
         await message.reply("\n".join(lines))
         return
 
@@ -29,7 +31,7 @@ async def remove_file(client, message):
     entry = get_entry(short_id)
 
     if not entry:
-        await message.reply("❌ ID tidak ditemukan. Cek daftar dengan `/remove` tanpa argumen.")
+        await message.reply("❌ ID tidak ditemukan. Cek daftar dengan `/rm` tanpa argumen.")
         return
 
     if entry.get("user_id") != user_id:
@@ -37,34 +39,17 @@ async def remove_file(client, message):
         return
 
     status = await message.reply("⏳ Menghapus file...")
+    provider = entry.get("type", "gofile")
 
     try:
-        if entry.get("type") == "gdrive":
-
-            from uploader.gdrive import delete_from_gdrive
-
-            delete_from_gdrive(
-                entry["file_id"]
-            )
-
+        if provider == "gdrive":
+            delete_from_gdrive(entry.get("file_id"))
         else:
-
-            delete_from_gofile(
-                entry["file_id"],
-                entry.get("guest_token")
-            )
-
-        await status.edit(
-            f"✅ File dihapus\n\n"
-            f"📁 {entry.get('name', 'unknown')}"
-        )
-
+            delete_from_gofile(entry.get("file_id"), entry.get("guest_token"))
         remove_entry(short_id)
-
+        await status.edit(f"✅ File dihapus\n\n📁 {entry.get('name', 'unknown')}")
     except Exception as e:
-
         await status.edit(
             f"❌ Gagal hapus file:\n{e}\n\n"
-            "Kemungkinan file sudah expired, atau bot sudah di-restart sejak upload "
-            "(guest token jadi tidak berlaku)."
+            "Kemungkinan file sudah expired, atau bot sudah di-restart sejak upload."
         )

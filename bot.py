@@ -11,6 +11,7 @@ import handlers.status_cmd
 import handlers.cancel
 import handlers.mirror
 import handlers.upload_select
+import handlers.rename
 import handlers.remove
 import handlers.admin
 
