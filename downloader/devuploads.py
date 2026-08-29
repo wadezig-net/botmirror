@@ -2,7 +2,10 @@ import os
 
 from config import DEVUPLOADS_SCRIPT, NODE_BIN
 from status_ui import render_status
-from downloader.browser_link_capture import run_node_link_finder, download_resolved_link
+from downloader.browser_link_capture import (
+    run_node_link_finder,
+    download_resolved_link_aria2,
+)
 
 DEVUPLOADS_DOMAINS = ("devuploads.com",)
 
@@ -31,4 +34,6 @@ async def devuploads_download(url, work_dir, ctx):
         NODE_BIN, DEVUPLOADS_SCRIPT, url, work_dir, ctx,
         timeout=180,
     )
-    return await download_resolved_link(result, work_dir, ctx)
+    # Devuploads nge-throttle free-user ~1 Mbps/koneksi; URL dukung Range (206),
+    # jadi dipartisi jadi 8 koneksi paralel via aria2c biar gak lemot.
+    return await download_resolved_link_aria2(result, work_dir, ctx)

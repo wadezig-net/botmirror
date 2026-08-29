@@ -2,11 +2,18 @@ import os
 import re
 import json
 import time
+import shutil
 import asyncio
 import requests
 
 from status_ui import render_status
 from utils import clean_filename
+
+# regex baris progress aria2c (--console-log-level=notice --summary-interval=2):
+#   [#a1b2c3 45.2MiB/141MiB(32%) CN:8 DL:2.4MiB ETA:0s]
+_ARIA2_PROGRESS_RE = re.compile(
+    r"\[#\w+\s+([\d.]+)[KMG]iB/[\d.]+[KMG]iB\((\d+)%\)\s+CN:(\d+)\s+DL:([\d.]+)([KMG])iB"
+)
 
 # mapping pola baris [debug] dari script node -> pesan status yang enak dibaca user,
 # biar panel di Telegram keliatan "hidup" selama proses browser headless jalan
@@ -169,3 +176,87 @@ async def download_resolved_link(result, work_dir, ctx):
         return filepath
 
     return await asyncio.to_thread(do_download)
+
+
+async def _aria2_parse_line(line):
+    """Terjemahkan satu baris summary aria2c jadi (label, percent, processed, total, speed, eta)."""
+    m = _ARIA2_PROGRESS_RE.search(line)
+    if not m:
+        return None
+    val, percent, conn, dl, unit = float(m.group(1)), *m.group(2, 3), float(m.group(4)), m.group(5)
+    processed = val * {"K": 1024, "M": 1024**2, "G": 1024**3}[unit]
+    speed = dl * {"K": 1024, "M": 1024**2, "G": 1024**3}[unit]
+    return percent, processed, speed
+
+
+async def download_resolved_link_aria2(result, work_dir, ctx, connections=8):
+    """
+    Variant download untuk host yang nge-throttle bandwidth per-koneksi (mis.
+    Devuploads: free user ~1 Mbps/koneksi). URL yang mendukung Range (server
+    balas 206) bisa dipartisi jadi beberapa koneksi paralel -- total bandwidth
+    jadi kelipatan hingga ~8-16x. Butuh aria2c terinstal; pakai internal parser
+    progress biar panel Telegram tetap update.
+    """
+    aria2 = shutil.which("aria2c")
+    if not aria2:
+        return await download_resolved_link(result, work_dir, ctx)
+
+    direct_url = result["direct_url"]
+    filename = clean_filename(result.get("filename") or "downloaded_file.bin")
+    referer = result.get("referer", direct_url)
+
+    await render_status(ctx, f"🔗 Mendownload {connections} koneksi paralel (aria2c)")
+
+    filepath = os.path.join(work_dir, filename)
+    cmd = [
+        aria2,
+        "--no-conf",
+        "--summary-interval", "2",
+        "--console-log-level=notice",
+        "-x", str(connections),
+        "-s", str(connections),
+        "-k", "1M",
+        "--dir", work_dir,
+        "--out", filename,
+        "--file-allocation=none",
+        "--allow-overwrite=true",
+        "--auto-file-renaming=false",
+        "--header", f"Referer: {referer}",
+        "--header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        direct_url,
+    ]
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    ctx["process"] = process
+    dl_last_update = [0.0]
+
+    try:
+        async for raw_line in process.stdout:
+            line = raw_line.decode(errors="ignore")
+            print(line, end="")
+            parsed = await _aria2_parse_line(line)
+            if not parsed:
+                continue
+            percent, processed, speed = parsed
+            now = time.monotonic()
+            if now - dl_last_update[0] < 2.5 and percent < 100:
+                continue
+            dl_last_update[0] = now
+            await render_status(
+                ctx, "Download", percent=percent,
+                processed=processed, speed=speed,
+            )
+        await process.wait()
+    finally:
+        ctx["process"] = None
+
+    if process.returncode != 0 or not os.path.isfile(filepath) or os.path.getsize(filepath) == 0:
+        # gagal paralel (mis. server nolak Range) -> fallback single-connection
+        return await download_resolved_link(result, work_dir, ctx)
+
+    return filepath
