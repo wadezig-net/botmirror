@@ -183,7 +183,13 @@ async def _aria2_parse_line(line):
     m = _ARIA2_PROGRESS_RE.search(line)
     if not m:
         return None
-    val, percent, conn, dl, unit = float(m.group(1)), *m.group(2, 3), float(m.group(4)), m.group(5)
+    val, percent, _conn, dl, unit = (
+        float(m.group(1)),
+        float(m.group(2)),
+        int(m.group(3)),
+        float(m.group(4)),
+        m.group(5),
+    )
     processed = val * {"K": 1024, "M": 1024**2, "G": 1024**3}[unit]
     speed = dl * {"K": 1024, "M": 1024**2, "G": 1024**3}[unit]
     return percent, processed, speed
