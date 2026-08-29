@@ -15,6 +15,7 @@ _PHASE_PATTERNS = [
     (re.compile(r"tombol download visible\?\s*true"), "🖱️ Tombol download ketemu"),
     (re.compile(r"percobaan klik ke-(\d+)"), "🖱️ Mencoba klik download (percobaan {0})"),
     (re.compile(r"kandidat (file|media) ketemu"), "🔎 Kandidat link ditemukan, memverifikasi..."),
+    (re.compile(r"dlink (ketemu|dari API|dari traffic)"), "🔗 Link download Terabox ketemu"),
     (re.compile(r"popup baru terbuka|\[popup\d+\] response"), "🪟 Memproses tab tambahan"),
     (re.compile(r"meta tag hasil"), "🏷️ Membaca metadata halaman"),
     (re.compile(r"pakai video dari|pakai gambar dari"), "🔎 Media ditemukan"),

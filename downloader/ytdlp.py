@@ -37,6 +37,15 @@ async def download_via_url(url, work_dir, ctx):
     (khusus sfile/threads) atau generic HTTP direct-download."""
     domain = urlparse(url).netloc.lower()
 
+    # Terabox & Devuploads tidak didukung yt-dlp sama sekali -- langsung ke
+    # resolver headless-nya tanpa buang waktu coba-coba yt-dlp dulu.
+    from downloader.terabox import terabox_download, TERABOX_DOMAINS
+    from downloader.devuploads import devuploads_download, DEVUPLOADS_DOMAINS
+    if any(d in domain for d in TERABOX_DOMAINS):
+        return await terabox_download(url, work_dir, ctx)
+    if any(d in domain for d in DEVUPLOADS_DOMAINS):
+        return await devuploads_download(url, work_dir, ctx)
+
     # sfl.gl: gerbang iklan berlapis + captcha yang berubah-ubah -- sengaja didesain
     # susah diotomasi. Daripada bot nyoba-coba terus gagal diam-diam / nyasar ke
     # halaman iklan random, kasih pesan jelas dari awal biar user tau harus
