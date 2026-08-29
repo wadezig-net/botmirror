@@ -16,6 +16,7 @@ import handlers.torrent
 import handlers.rename
 import handlers.remove
 import handlers.admin
+import handlers.backup
 
 
 async def register_commands(client):
@@ -27,11 +28,15 @@ async def register_commands(client):
         BotCommand("torrent", "Download & mirror torrent/magnet"),
         BotCommand("t", "Alias singkat buat /torrent"),
         BotCommand("status", "Lihat task aktif & riwayat"),
+        BotCommand("backup", "Kirim backup PDF ke chat (admin)"),
         BotCommand("rm", "Hapus file yang sudah di upload"),
         BotCommand("help", "Panduan penggunaan bot"),
         BotCommand("donate", "Dukung dong pengembangan bot ini"),
-        BotCommand("addpremium", "Tambah user premium"),
-        BotCommand("delpremium", "Hapus user premium"),
+        BotCommand("addpremium", "Tambah user premium (ID/@/reply)"),
+        BotCommand("delpremium", "Hapus user premium (ID/@/reply)"),
+        BotCommand("addadmin", "Angkat user jadi admin"),
+        BotCommand("deladmin", "Cabut user dari admin"),
+        BotCommand("userlist", "Lihat premium, owner & admin"),
     ])
 
     # tombol "Menu" di sebelah ikon stiker/attach -- tap sekali langsung
