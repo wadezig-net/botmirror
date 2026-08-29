@@ -227,6 +227,10 @@ async def download_resolved_link_aria2(result, work_dir, ctx, connections=8):
         "--file-allocation=none",
         "--allow-overwrite=true",
         "--auto-file-renaming=false",
+        "--max-tries", "5",
+        "--retry-wait", "3",
+        "--timeout", "30",
+        "--connect-timeout", "15",
         "--header", f"Referer: {referer}",
         "--header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
