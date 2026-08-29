@@ -134,3 +134,16 @@ def clean_filename(filename):
     filename = filename.strip()
 
     return filename or "downloaded_file.bin"
+
+
+def is_owner_or_premium(user_id):
+    """
+    Khusus buat privasi tampilan /status -- owner & premium task-nya
+    disamarkan jadi 'Private Task', beda dari is_premium() yang lagi
+    di-nonaktifkan sementara (return True buat semua user).
+    """
+    data = load_users()
+    return (
+        user_id in data.get("owner", [])
+        or user_id in data.get("premium", [])
+    )

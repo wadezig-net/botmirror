@@ -11,6 +11,8 @@ import handlers.status_cmd
 import handlers.cancel
 import handlers.mirror
 import handlers.upload_select
+import handlers.zip_select
+import handlers.torrent
 import handlers.rename
 import handlers.remove
 import handlers.admin
@@ -22,6 +24,8 @@ async def register_commands(client):
         BotCommand("start", "Mulai / tampilkan menu utama"),
         BotCommand("mirror", "Mirror URL atau reply ke pesan/media"),
         BotCommand("m", "Alias singkat buat /mirror"),
+        BotCommand("torrent", "Download & mirror torrent/magnet"),
+        BotCommand("t", "Alias singkat buat /torrent"),
         BotCommand("status", "Lihat task aktif & riwayat"),
         BotCommand("rm", "Hapus file yang sudah di upload"),
         BotCommand("help", "Panduan penggunaan bot"),

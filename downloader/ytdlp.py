@@ -54,6 +54,8 @@ async def download_via_url(url, work_dir, ctx):
     from downloader.http_direct import generic_http_download
     from downloader.sfile import sfile_headless_download, SFILE_DOMAINS
     from downloader.threads import threads_headless_download, THREADS_DOMAINS
+    from downloader.fichier import fichier_headless_download, FICHIER_DOMAINS
+    from downloader.mega import mega_download, MEGA_DOMAINS
 
     output_template = f"{work_dir}/%(title)s.%(ext)s"
 
@@ -172,6 +174,10 @@ async def download_via_url(url, work_dir, ctx):
                     downloaded_file = await sfile_headless_download(url, work_dir, ctx)
                 elif any(d in domain for d in THREADS_DOMAINS):
                     downloaded_file = await threads_headless_download(url, work_dir, ctx)
+                elif any(d in domain for d in FICHIER_DOMAINS):
+                    downloaded_file = await fichier_headless_download(url, work_dir, ctx)
+                elif any(d in domain for d in MEGA_DOMAINS):
+                    downloaded_file = await mega_download(url, work_dir, ctx)
                 else:
                     downloaded_file = await generic_http_download(url, work_dir, ctx)
             except Exception as fallback_err:

@@ -43,17 +43,19 @@ async def _heartbeat(ctx, stop_event):
             await render_status(ctx, ctx.get("phase", "🌐 Memproses headless browser"))
 
 
-async def run_node_link_finder(node_bin, script_path, url, work_dir, ctx, timeout=120):
+async def run_node_link_finder(node_bin, script_path, url, work_dir, ctx, timeout=120, extra_env=None):
     """
     Jalankan script node yang tugasnya cuma NEMUIN link media asli (bukan
     download-nya) + cookies session. Selama proses ini jalan (bisa puluhan
     detik), status di Telegram di-update berkala biar nggak keliatan freeze.
     Return: dict hasil parse JSON dari stdout script node.
     """
+    proc_env = {**os.environ, **extra_env} if extra_env else None
     proc = await asyncio.create_subprocess_exec(
         node_bin, script_path, url, work_dir,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=proc_env,
     )
     ctx["process"] = proc
 

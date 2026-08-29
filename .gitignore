@@ -22,7 +22,7 @@ downloads/
 *.zip
 *.rar
 downloads/
-
+*.webm
 # Logs
 *.log
 upload_history.json

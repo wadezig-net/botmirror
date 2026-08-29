@@ -3,7 +3,7 @@ import time
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import task_registry, task_history
-from utils import get_progress_bar, format_bytes, format_duration
+from utils import get_progress_bar, format_bytes, format_duration, is_owner_or_premium
 from system_stats import render_system_block
 
 
@@ -40,7 +40,8 @@ async def render_status(ctx, status_label, percent=None, processed=None, total=N
 
     elapsed = format_duration(time.monotonic() - ctx["start_time"])
 
-    lines = [f"🔒 Nama: {ctx['title']}", ""]
+    title_display = "Private Task" if is_owner_or_premium(ctx.get("user_id")) else ctx['title']
+    lines = [f"🔒 Nama: {title_display}", ""]
 
     if percent is not None:
         lines.append(f"Status: {status_label} ({percent:.2f}%)")
@@ -85,10 +86,12 @@ def render_status_overview():
             elapsed = format_duration(time.monotonic() - ctx["start_time"])
             percent = ctx.get("percent") or 0.0
             bar = get_progress_bar(percent)
+            title_display = "🔒 Private Task" if is_owner_or_premium(ctx.get("user_id")) else ctx['title']
+            mention_display = "🔒 Anonim" if is_owner_or_premium(ctx.get("user_id")) else ctx['user_mention']
             lines.append(
-                f"🔹 {ctx['title']}\n"
+                f"🔹 {title_display}\n"
                 f"   {ctx.get('phase', '?')} [{bar}] {percent:.1f}%\n"
-                f"   👤 {ctx['user_mention']} | ⏱ {elapsed}\n"
+                f"   👤 {mention_display} | ⏱ {elapsed}\n"
                 f"   /cancel_{ctx['request_id']}"
             )
     else:
@@ -100,7 +103,9 @@ def render_status_overview():
         for h in list(task_history)[:10]:
             ago = format_duration(time.time() - h["finished_at"])
             icon = icons.get(h["state"], "❔")
-            entry = f"{icon} {h['title']} — {h['user_mention']} ({ago} lalu)"
+            title_display = "🔒 Private Task" if is_owner_or_premium(h.get("user_id")) else h['title']
+            mention_display = "🔒 Anonim" if is_owner_or_premium(h.get("user_id")) else h['user_mention']
+            entry = f"{icon} {title_display} — {mention_display} ({ago} lalu)"
             if h["state"] == "error" and h["error"]:
                 entry += f"\n   ⚠️ {h['error'][:100]}"
             lines.append(entry)

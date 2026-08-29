@@ -13,6 +13,9 @@ BASE_DIR = "/root/botmirror"
 DOWNLOAD_DIR = f"{BASE_DIR}/downloads"
 COOKIE_FILE = f"{BASE_DIR}/cookies.txt"
 SFILE_SCRIPT = f"{BASE_DIR}/scripts/sfile_download.js"
+FICHIER_SCRIPT = f"{BASE_DIR}/scripts/fichier_download.js"
+FICHIER_LOGIN_COOKIES = f"{BASE_DIR}/fichier_login_cookies.json"
+FICHIER_PROXIES_FILE = f"{BASE_DIR}/fichier_proxies.txt"
 NODE_BIN = "/usr/bin/node"
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
