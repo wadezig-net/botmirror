@@ -14,6 +14,7 @@ from downloader.telegram_dl import download_from_telegram
 
 from uploader.gofile import upload_to_gofile
 from uploader.gdrive import upload_to_gdrive
+from uploader.channel import upload_to_channel
 from uploader.history import add_entry
 
 SAFE_NAME_RE = re.compile(r"[\\/\0]")
@@ -40,7 +41,7 @@ async def make_zip(work_dir, target_file, ctx):
     return zip_name
 
 
-@app.on_callback_query(filters.regex(r"^upload_(gofile|gdrive):"))
+@app.on_callback_query(filters.regex(r"^upload_(gofile|gdrive|channel):"))
 async def upload_select(client, callback_query):
 
     data = callback_query.data
@@ -114,6 +115,13 @@ async def upload_select(client, callback_query):
                 ctx
             )
 
+        elif upload_type == "upload_channel":
+
+            upload_result = await upload_to_channel(
+                downloaded_file,
+                ctx
+            )
+
         else:
 
             upload_result = await upload_to_gdrive(
@@ -128,7 +136,7 @@ async def upload_select(client, callback_query):
         short_id = uuid.uuid4().hex[:6]
 
         entry = {
-            "type": "gofile" if upload_type == "upload_gofile" else "gdrive",
+            "type": upload_type if upload_type == "upload_channel" else ("gofile" if upload_type == "upload_gofile" else "gdrive"),
             "file_id": upload_result.get("file_id"),
             "guest_token": upload_result.get("guest_token"),
             "name": os.path.basename(downloaded_file),

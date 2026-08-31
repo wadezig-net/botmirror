@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from utils import is_premium
+from utils import is_premium, can_start_task
 from config import app, DOWNLOAD_DIR, task_registry, task_history, pending_upload
 from downloader.ytdlp import download_via_url
 from downloader.telegram_dl import download_from_telegram
@@ -116,6 +116,10 @@ async def mirror(client, message):
                 shutil.rmtree(fichier_work_dir, ignore_errors=True)
             return
 
+    _ok, _limit_msg = can_start_task(message.from_user.id)
+    if not _ok:
+        return await message.reply(_limit_msg)
+
     request_id = uuid.uuid4().hex[:8]
     work_dir = os.path.join(DOWNLOAD_DIR, request_id)
     os.makedirs(work_dir, exist_ok=True)
@@ -128,6 +132,7 @@ async def mirror(client, message):
     upload_keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("☁️ GoFile", callback_data=f"upload_gofile:{request_id}")],
         [InlineKeyboardButton("📁 Google Drive", callback_data=f"upload_gdrive:{request_id}")],
+        [InlineKeyboardButton("📨 Telegram Channel", callback_data=f"upload_channel:{request_id}")],
         [InlineKeyboardButton("📦 Zip & Upload", callback_data=f"upload_zip:{request_id}")],
     ])
 
