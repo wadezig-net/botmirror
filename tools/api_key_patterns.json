@@ -1,66 +1,58 @@
 {
   "_comment": "API Key patterns config for Hermes API Key Finder",
-  "_format": "Each entry: category -> list of [regex_pattern, description]",
+  "_format": "Each entry: category -> list of (regex_pattern, description)",
   "patterns": {
     "generic": [
       [
-        "(?:api[_-]?key|apikey|api[_-]?secret|secret[_-]?key|secretkey)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{16,})",
+        "(?:api[_-]?key|apikey|api[_-]?secret|secret[_-]?key|secretkey)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\\\-]{16,})\\\"?",
         "API Key/Secret"
       ],
       [
-        "(?:secret|private[_-]?key|privkey)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_/+=]{20,})",
+        "(?:secret|private[_-]?key|privkey)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_/+=\\\\-]{20,})\\\"?",
         "Private/Secret Key"
       ],
       [
-        "(?:access[_-]?key|accesskey|aws[_-]?access)\\s*[=:]\\s*['\\\"]?([A-Z0-9]{16,})",
+        "(?:access[_-]?key|accesskey|aws[_-]?access)\\s*[=:]\\s*['\\\"]?([A-Z0-9]{16,})\\\"?",
         "AWS Access Key"
       ],
       [
-        "(?:secret[_-]?access|aws[_-]?secret)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_/+=]{20,})",
+        "(?:secret[_-]?access|aws[_-]?secret)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_/+=]{20,})\\\"?",
         "AWS Secret Access"
-      ],
-      [
-        "(?:authorization|auth)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{20,})",
-        "Authorization Header"
-      ],
-      [
-        "(?:bearer)\\s+([A-Za-z0-9_\\-]{20,})",
-        "Bearer Token"
       ]
     ],
     "openai": [
       [
-        "(?:sk|sk-[A-Za-z0-9_]+)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{20,})",
+        "(?:sk|sk-[A-Za-z0-9_]+)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\\\-]{20,})\\\"?",
         "OpenAI API Key"
       ],
       [
-        "sk-[A-Za-z0-9_\\-]{20,}",
+        "sk-[A-Za-z0-9_\\\\-]{20,}",
         "OpenAI Key (standalone)"
       ]
     ],
     "anthropic": [
       [
-        "(?:claude[_-]?api|anthropic[_-]?api|x[- ]?api[- ]?key)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{20,})",
+        "(?:claude[_-]?api|anthropic[_-]?api|x[- ]?api[- ]?key)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\\\-]{20,})\\\"?",
         "Anthropic API Key"
       ],
       [
-        "x-api-key\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{20,})",
+        "x-api-key\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\\\-]{20,})\\\"?",
         "Anthropic x-api-key"
       ]
     ],
     "google": [
       [
-        "(?:google[_-]?api|gcp[_-]?key|google[_-]?cloud)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{20,})",
+        "(?:google[_-]?api|gcp[_-]?key|google[_-]?cloud)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\\\-]{20,})\\\"?",
         "Google/GCP Key"
       ],
       [
-        "(?:AIza)[A-Za-z0-9_\\-]{35}",
+        "(?:AIza)[A-Za-z0-9_\\\\-]{35}",
         "Google API Key (standalone)"
       ]
     ],
     "github": [
       [
-        "(?:github[_-]?token|gh[_-]?token|github[_-]?access)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_]{20,})",
+        "(?:github[_-]?token|gh[_-]?token|github[_-]?access)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_]{20,})\\\"?",
         "GitHub Token"
       ],
       [
@@ -74,12 +66,12 @@
     ],
     "stripe": [
       [
-        "(?:stripe[_-]?key|stripe[_-]?secret)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_]{20,})",
+        "(?:stripe[_-]?key|stripe[_-]?secret)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_]{20,})\\\"?",
         "Stripe Key"
       ],
       [
         "(?:sk|rk)_test_[A-Za-z0-9_]{20,}",
-        "Stripe Test Key"
+        "Stripe Key (standalone)"
       ],
       [
         "(?:sk|rk)_live_[A-Za-z0-9_]{20,}",
@@ -92,52 +84,55 @@
         "Slack Token"
       ],
       [
-        "xox[bprs]-[A-Za-z0-9_\\-]{10,}",
+        "xox[bprs]-[A-Za-z0-9_\\\\-]{10,}",
         "Slack Token (standalone)"
       ]
     ],
     "jwt": [
       [
-        "eyJ[A-Za-z0-9_\\-]{20,}\\.[A-Za-z0-9_\\-]{20,}\\.[A-Za-z0-9_\\-]{20,}",
+        "eyJ[A-Za-z0-9_\\\\-]{20,}\\\\.[A-Za-z0-9_\\\\-]{20,}\\\\.[A-Za-z0-9_\\\\-]{20,}",
         "JWT Token"
       ]
     ],
     "password": [
       [
-        "(?:password|passwd|pwd|pass)\\s*[=:]\\s*['\\\"]?([\\S]{6,})",
-        "Password (plaintext)"
+        "(?:password|passwd|pwd|pass)\\s*[=:]\\s*['\\\"]?([\\\\S]{6,})\\\"?",
+        "Password (plaintext in file)"
       ]
     ],
     "database": [
       [
-        "(?:mongodb|mysql|postgresql|postgres|redis|mssql|sqlite)://[A-Za-z0-9_:\\-\\./@]+",
+        "(?:mongodb|mysql|postgresql|postgres|redis|mssql|sqlite)://[A-Za-z0-9_:\\\\-./@]+",
         "Database Connection String"
       ],
       [
-        "(?:DB[_-]?(?:URL|NAME|PASS|USER|HOST|PORT|PASSWD))\\s*[=:]\\s*\\S+",
-        "Database Env Var"
+        "(?:DB[_-]?(?:URL|NAME|PASS|USER|HOST|PORT|PASSWD))\\\\s*[=:]",
+        "Database Env Var (value hidden)"
       ]
     ],
     "twilio": [
       [
-        "(?:twilio[_-]?account|twilio[_-]?sid|auth_token)\\s*[=:]\\s*['\\\"]?[A-Za-z0-9_]{10,}",
+        "(?:twilio|sid|auth_token)\\\\s*[=:]",
         "Twilio Credential"
       ]
     ],
     "telegram": [
       [
-        "(?:telegram[_-]?token|tg[_-]?token|bot[_-]?token|bot_token)\\s*[=:]\\s*['\\\"]?[\\d]{6,}:[A-Za-z0-9_\\-]{20,}",
+        "(?:telegram[_-]?token|tg[_-]?token|bot[_-]?token)\\\\s*[=:]",
         "Telegram Bot Token"
       ],
       [
-        "[\\d]{6,}:[A-Za-z0-9_\\-]{20,}",
+        "(?:\\\\d{6,}:[A-Za-z0-9_\\\\-]{20,})",
         "Telegram Bot Token (standalone)"
       ]
-    ],
-    "custom_example": [
+    ]
+  },
+  "_customize": "Add your own patterns here following the same format.",
+  "_example": {
+    "my_service": [
       [
-        "(?:my_service[_-]?key|my_custom_secret)\\s*[=:]\\s*['\\\"]?([A-Za-z0-9_\\-]{16,})",
-        "My Custom Service Key"
+        "(?:my_service[_-]?key|my_secret)\\\\s*[=:]\\\\s*['\\\"]?([A-Za-z0-9_\\\\-]{16,})'",
+        "My Service API Key"
       ]
     ]
   }
