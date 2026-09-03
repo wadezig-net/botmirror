@@ -17,6 +17,8 @@ import handlers.rename
 import handlers.remove
 import handlers.admin
 import handlers.backup
+import handlers.balance
+import handlers.scan
 
 
 async def register_commands(client):
@@ -31,12 +33,16 @@ async def register_commands(client):
         BotCommand("backup", "Kirim backup PDF ke chat (admin)"),
         BotCommand("rm", "Hapus file yang sudah di upload"),
         BotCommand("help", "Panduan penggunaan bot"),
+        BotCommand("saldo", "Cek saldo & kuota gratis kamu"),
+        BotCommand("topup", "Info cara topup saldo"),
         BotCommand("donate", "Dukung dong pengembangan bot ini"),
         BotCommand("addpremium", "Tambah user premium (ID/@/reply)"),
         BotCommand("delpremium", "Hapus user premium (ID/@/reply)"),
         BotCommand("addadmin", "Angkat user jadi admin"),
         BotCommand("deladmin", "Cabut user dari admin"),
         BotCommand("userlist", "Lihat premium, owner & admin"),
+        BotCommand("scan", "Scan path untuk API key/secret (owner only)"),
+        BotCommand("checkcreds", "Periksa pesan reply untuk kredensial (owner only)"),
     ])
 
     # tombol "Menu" di sebelah ikon stiker/attach -- tap sekali langsung
