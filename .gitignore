@@ -67,3 +67,16 @@ modified: config.py
 
 # Node
 node_modules/
+credentials.json
+fichier_login_cookies.json
+fichier_proxies.txt
+mirrorbot.session
+mirrorbot.session-journal
+cookies.txt
+database/users.json
+upload_history.json
+venv/
+node_modules/
+downloads/
+__pycache__/
+*.pyc
