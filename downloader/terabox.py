@@ -23,10 +23,11 @@ async def terabox_download(url, work_dir, ctx):
     await render_status(ctx, "🌐 Membuka halaman Terabox")
 
     if not os.path.isfile(TERABOX_SCRIPT):
-        raise Exception(
-            f"Script {TERABOX_SCRIPT} tidak ditemukan. "
-            "Pastikan sudah di-setup (lihat instruksi setup Playwright)."
-        )
+        # Scrapling fallback: kalau script node Terabox belum di-setup, coba
+        # resolver generik berbasis Scrapling (StealthyFetcher + capture_xhr).
+        from downloader.scrapling_resolver import scrapling_try
+        await render_status(ctx, "🌐 Script Node belum ada, mencoba Scrapling…")
+        return await scrapling_try(url, work_dir, ctx, multi_connection=True)
     if not os.path.isfile(NODE_BIN):
         raise Exception(
             f"Node binary tidak ditemukan di {NODE_BIN}. "

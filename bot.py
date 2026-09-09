@@ -18,7 +18,6 @@ import handlers.remove
 import handlers.admin
 import handlers.backup
 import handlers.balance
-import handlers.scan
 
 
 async def register_commands(client):

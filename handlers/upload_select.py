@@ -9,6 +9,9 @@ from pyrogram import filters
 
 from config import app, pending_upload, task_registry
 from status_ui import render_status
+from utils import (
+    charge_for_mirror, cost_in_points, get_balance, friendly_error,
+)
 from downloader.ytdlp import download_via_url
 from downloader.telegram_dl import download_from_telegram
 
@@ -74,6 +77,24 @@ async def upload_select(client, callback_query):
     # sudah mati -> proses tidak pernah benar-benar dibatalkan.
     ctx["task"] = asyncio.current_task()
 
+    # Setelah user memilih tujuan upload, hapus pesan sesi pilihan (Pilih nama file /
+    # rename / tombol tujuan) biar chat bersih, lalu buat status panel terpisah yang
+    # akan di-update selama download+upload. Pesan sesi bisa berupa ctx["status"]
+    # (pesan awal) DAN beberapa pesan tambahan dari alur rename (konfirmasi nama +
+    # pilihan tujuan) yang tersimpan di task["extra_messages"] -- semua dihapus.
+    for m in list(task.get("extra_messages", [])):
+        try:
+            await m.delete()
+        except Exception:
+            pass
+    task["extra_messages"] = []
+    try:
+        await ctx["status"].delete()
+    except Exception:
+        pass
+    ctx["status"] = await message.reply("🔄 Menyiapkan mirror...")
+    ctx["last_text"] = [""]
+
 
     try:
         if url:
@@ -100,6 +121,19 @@ async def upload_select(client, callback_query):
                 downloaded_file = new_path
 
         ctx["title"] = os.path.basename(downloaded_file)
+
+        # ===================== PAYWALL MIRROR =====================
+        # Keputusan biaya diambil saat ukuran file sudah PASTI (dari disk).
+        # owner/premium/admin -> gratis unlimited; user biasa -> kuota gratis
+        # 2x/hari (@max 2GB) atau pakai saldo internal kalau lewat/habis.
+        actual_size = os.path.getsize(downloaded_file)
+        user_id = ctx.get("user_id", 0)
+
+        allowed, paid_saldo, pay_msg = charge_for_mirror(user_id, actual_size)
+        if not allowed:
+            await message.reply(pay_msg or "❌ Gagal.")
+            raise Exception(pay_msg or "Access denied")
+        # ===========================================================
 
         # kalau user milih "Zip & Upload", bungkus file hasil download jadi arsip
         # .zip sebelum di-upload. Nama arsip mengikuti nama file (termasuk hasil
@@ -150,8 +184,11 @@ async def upload_select(client, callback_query):
             "✅ Mirror selesai\n\n"
             f"📁 File:\n{os.path.basename(downloaded_file)}\n\n"
             f"📦 Size: {size_mb:.2f} MB\n\n"
-            f"🔗 Link:\n{upload_result.get('link')}\n\n"
-            f"🆔 ID: `{short_id}`"
+            + (f"💎 Dibayar pakai saldo ({cost_in_points(actual_size):.2f} 💎). "
+               f"Sisa: {get_balance(user_id):.2f} 💎\n\n" if paid_saldo else "")
+            + f"🔗 Link:\n{upload_result.get('link')}\n\n"
+            f"🆔 ID: `{short_id}`",
+            disable_web_page_preview=True,
         )
 
 
@@ -167,7 +204,7 @@ async def upload_select(client, callback_query):
     except Exception as e:
 
         await message.reply(
-            f"❌ Gagal:\n{e}"
+            f"❌ Gagal:\n{friendly_error(e)}"
         )
 
 

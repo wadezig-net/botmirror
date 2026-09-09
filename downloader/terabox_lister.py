@@ -4,9 +4,11 @@ import asyncio
 import subprocess
 from urllib.parse import urlparse
 
-from config import TERABOX_SCRIPT, NODE_BIN, DOWNLOAD_DIR
+from config import TERABOX_SCRIPT, NODE_BIN, DOWNLOAD_DIR, proxy_env
 from status_ui import render_status
 
+# Domain Terabox yang dikenal
+TERABOX_DOMAINS = ("terabox.com", "www.terabox.com", "www.terabox.app", "terabox.app")
 
 async def terabox_list_files(url, work_dir, ctx):
     """
@@ -29,6 +31,7 @@ async def terabox_list_files(url, work_dir, ctx):
         work_dir,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env={**os.environ, **proxy_env()},
     )
 
     try:
@@ -58,3 +61,23 @@ async def terabox_list_files(url, work_dir, ctx):
         "cookie_file": result.get("cookie_file", ""),
         "referer": result.get("referer", ""),
     }
+
+
+async def traverse_terabox_folder(url, work_dir, ctx, on_progress=None):
+    """
+    Wrapper higher-level untuk traverse folder Terabox.
+    Dipanggil dari handler mirror.py. Menggunakan terabox_list_files di bawah.
+    on_progress: callable(msg) dipanggil setiap kali ada progress update.
+    """
+    result = await terabox_list_files(url, work_dir, ctx)
+
+    # Kirim progress ke callback jika ada
+    if on_progress:
+        await on_progress(
+            f"📁 **{result['title']}**\n\n"
+            f"📂 Folder: `{result['totalFolders']}`\n"
+            f"📄 File: `{result['totalFiles']}`\n\n"
+            f"Daftar file bisa dilihat di status panel."
+        )
+
+    return result

@@ -37,31 +37,98 @@ async def download_via_url(url, work_dir, ctx):
     (khusus sfile/threads) atau generic HTTP direct-download."""
     domain = urlparse(url).netloc.lower()
 
-    # Terabox & Devuploads tidak didukung yt-dlp sama sekali -- langsung ke
-    # resolver headless-nya tanpa buang waktu coba-coba yt-dlp dulu.
+    # Terabox, Devuploads, & Kaceku tidak didukung yt-dlp sama sekali -- langsung ke
+    # resolver masing-masing tanpa buang waktu coba-coba yt-dlp dulu.
     from downloader.terabox import terabox_download, TERABOX_DOMAINS
     from downloader.devuploads import devuploads_download, DEVUPLOADS_DOMAINS
+    from downloader.kaceku import kaceku_download, KACEKU_DOMAINS
     if any(d in domain for d in TERABOX_DOMAINS):
         return await terabox_download(url, work_dir, ctx)
     if any(d in domain for d in DEVUPLOADS_DOMAINS):
         return await devuploads_download(url, work_dir, ctx)
+    if any(d in domain for d in KACEKU_DOMAINS):
+        return await kaceku_download(url, work_dir, ctx)
 
     # sfl.gl: gerbang iklan berlapis + captcha yang berubah-ubah -- sengaja didesain
-    # susah diotomasi. Daripada bot nyoba-coba terus gagal diam-diam / nyasar ke
-    # halaman iklan random, kasih pesan jelas dari awal biar user tau harus
-    # resolve manual dulu (buka link-nya sendiri, lewatin iklan+captcha, ambil
-    # link tujuan akhirnya -- biasanya sfile.mobi -- baru /mirror link itu).
+    # susah diotomasi. Kalau CAPTCHA_API_KEY di-set di .env, kita coba lewatin
+    # lewat 2Captcha (Turnstile solving) + browser; kalau nggak ada key, kasih
+    # pesan jelas dari awal biar user tau harus resolve manual dulu (buka
+    # link-nya sendiri, lewatin iklan+captcha, ambil link tujuan akhirnya --
+    # biasanya sfile.mobi -- baru /mirror link itu).
     if "sfl.gl" in domain:
+        from downloader import captcha as captcha_mod
+        if captcha_mod.captcha_configured():
+            from downloader.sfl import sfl_captcha_download
+            return await sfl_captcha_download(url, work_dir, ctx)
         raise Exception(
-            "Link sfl.gl nggak didukung otomatis (situsnya pakai captcha berubah-ubah "
-            "yang sengaja mencegah bot). Buka link ini manual di browser, lewati "
+            "Link sfl.gl butuh bypass captcha (Turnstile) yang otomatis.\n\n"
+            "Set CAPTCHA_API_KEY (dari 2captcha.com) di .env buat bikin bot bisa "
+            "lewat otomatis, atau buka link ini manual di browser, lewati "
             "iklan+captcha-nya, lalu /mirror link TUJUAN AKHIRNYA (biasanya sfile.mobi)."
         )
+
+    # Real-Debrid dulu (akun premium umumnya bisa unlock host yang debrid-link
+    # free tolak). Kalau RD gagal, lanjut ke jalur berikutnya (bukan langsung
+    # menyerah). 1Fichier di-handle di branch FICHIER khusus.
+    from downloader.real_debrid import (
+        rd_configured,
+        RD_DOMAINS,
+        real_debrid_download,
+    )
+    if rd_configured() and any(d in domain for d in RD_DOMAINS) and "1fichier" not in domain:
+        try:
+            return await real_debrid_download(url, work_dir, ctx)
+        except Exception:
+            pass
+
+    # Host premium (Rapidgator, Uploaded, Turbobit, keep2share, dll) nggak bisa
+    # di-resolve yt-dlp maupun fallback direct-download biasa. Kalau
+    # DEBRID_LINK_API_KEY di-set di .env, cegat di sini dan unlock link-nya lewat
+    # Debrid-Link biar jadi direct link (mirror juga link 1fichier premium).
+    from downloader.debrid_link import (
+        debrid_configured,
+        DEBRID_LINK_DOMAINS,
+        debrid_link_download,
+    )
+    if debrid_configured() and any(d in domain for d in DEBRID_LINK_DOMAINS):
+        return await debrid_link_download(url, work_dir, ctx)
+
+    # Torrent/magnet: qBittorrent (self-debrid style) kalau dikonfigurasi.
+    from downloader.qbittorrent import qb_configured, torrent_download
+    if url.startswith("magnet:") or url.lower().endswith(".torrent"):
+        if qb_configured():
+            return await torrent_download(url, work_dir, ctx)
+        raise Exception(
+            "Link torrent/magnet butuh qBittorrent (self-debrid style). Isi "
+            "QB_HOST, QB_PORT, QB_USER, QB_PASS di .env -- web UI qBittorrent "
+            "harus aktif di server ini."
+        )
+
+    # JDownloader: 100+ hoster premium/free (mediafire, mega, uptobox, dll) via
+    # MyJDownloader (self-debrid style). Dicegat sebelum yt-dlp karena host di
+    # daftar JD_DOMAINS umumnya gak bisa di-resolve jalur lain.
+    from downloader.jdownloader import jd_configured, JD_DOMAINS, jdownloader_download
+    if jd_configured() and any(d in domain for d in JD_DOMAINS):
+        return await jdownloader_download(url, work_dir, ctx)
+
+    # X/Twitter: yt-dlp extractornya kadang gagal (terutama amplify video / iklan
+    # yang media-nya tak ter-expose). Resolver khusus lewat API fxtwitter dulu;
+    # kalau gagal, baru lanjut jalur yt-dlp di bawah.
+    from downloader.xmedia import x_download, X_DOMAINS
+    if any(d in domain for d in X_DOMAINS):
+        try:
+            return await x_download(url, work_dir, ctx)
+        except Exception:
+            pass
 
     # import lokal untuk hindari circular import (fallback butuh modul lain
     # yang juga mengimpor dari sini secara tidak langsung)
     from downloader.http_direct import generic_http_download
-    from downloader.sfile import sfile_headless_download, SFILE_DOMAINS
+    from downloader.sfile import (
+        sfile_headless_download,
+        sfile_http2_download,
+        SFILE_DOMAINS,
+    )
     from downloader.threads import threads_headless_download, THREADS_DOMAINS
     from downloader.fichier import fichier_headless_download, FICHIER_DOMAINS
     from downloader.mega import mega_download, MEGA_DOMAINS
@@ -180,15 +247,47 @@ async def download_via_url(url, work_dir, ctx):
             await render_status(ctx, "⚠️ Bukan situs yt-dlp, mencoba direct download")
             try:
                 if any(d in domain for d in SFILE_DOMAINS):
-                    downloaded_file = await sfile_headless_download(url, work_dir, ctx)
+                    try:
+                        # Jalur utama: HTTP/2 ringan tanpa browser. Lebih cepat &
+                        # stabil. Fallback ke headless Playwright kalau gagal.
+                        downloaded_file = await sfile_http2_download(url, work_dir, ctx)
+                    except Exception:
+                        downloaded_file = await sfile_headless_download(url, work_dir, ctx)
                 elif any(d in domain for d in THREADS_DOMAINS):
                     downloaded_file = await threads_headless_download(url, work_dir, ctx)
                 elif any(d in domain for d in FICHIER_DOMAINS):
-                    downloaded_file = await fichier_headless_download(url, work_dir, ctx)
+                    # Urutan jalur unlock 1fichier: Real-Debrid -> Debrid-Link ->
+                    # JDownloader -> headless asli. Tiap langkah yang gagal
+                    # otomatis turun ke langkah berikutnya.
+                    fichier_chain = []
+                    if rd_configured():
+                        fichier_chain.append(("Real-Debrid", real_debrid_download))
+                    if debrid_configured():
+                        fichier_chain.append(("Debrid-Link", debrid_link_download))
+                    if jd_configured():
+                        fichier_chain.append(("JDownloader", jdownloader_download))
+                    downloaded_file = None
+                    for label, resolver in fichier_chain:
+                        try:
+                            downloaded_file = await resolver(url, work_dir, ctx)
+                            break
+                        except Exception:
+                            continue
+                    if downloaded_file is None:
+                        if fichier_chain:
+                            await render_status(ctx, "⚠️ Debrid/JDownloader gagal, coba 1fichier asli")
+                        downloaded_file = await fichier_headless_download(url, work_dir, ctx)
                 elif any(d in domain for d in MEGA_DOMAINS):
                     downloaded_file = await mega_download(url, work_dir, ctx)
                 else:
-                    downloaded_file = await generic_http_download(url, work_dir, ctx)
+                    # Scrapling fallback universal (StealthyFetcher + capture_xhr)
+                    # sebelum menyusut jadi generic HTTP direct-download. Host
+                    # yang butuh render JS / anti-bot bisa ter-resolve di sini.
+                    try:
+                        from downloader.scrapling_resolver import scrapling_try
+                        downloaded_file = await scrapling_try(url, work_dir, ctx)
+                    except Exception:
+                        downloaded_file = await generic_http_download(url, work_dir, ctx)
             except Exception as fallback_err:
                 raise Exception(
                     f"yt-dlp gagal & direct download juga gagal: {fallback_err}"

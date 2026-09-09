@@ -1,0 +1,52 @@
+[
+  {
+    "emoji": "⚙️",
+    "style": "bounce",
+    "file": "gear.webm",
+    "png": "gear.png",
+    "bytes": 30938,
+    "codec": "vp9",
+    "w": 100,
+    "h": 100
+  },
+  {
+    "emoji": "✅",
+    "style": "bounce",
+    "file": "white_heavy_check_mark.webm",
+    "png": "white_heavy_check_mark.png",
+    "bytes": 13979,
+    "codec": "vp9",
+    "w": 100,
+    "h": 100
+  },
+  {
+    "emoji": "🚀",
+    "style": "bounce",
+    "file": "rocket.webm",
+    "png": "rocket.png",
+    "bytes": 30733,
+    "codec": "vp9",
+    "w": 100,
+    "h": 100
+  },
+  {
+    "emoji": "❤️",
+    "style": "bounce",
+    "file": "heavy_black_heart.webm",
+    "png": "heavy_black_heart.png",
+    "bytes": 19412,
+    "codec": "vp9",
+    "w": 100,
+    "h": 100
+  },
+  {
+    "emoji": "📦",
+    "style": "bounce",
+    "file": "package.webm",
+    "png": "package.png",
+    "bytes": 19337,
+    "codec": "vp9",
+    "w": 100,
+    "h": 100
+  }
+]

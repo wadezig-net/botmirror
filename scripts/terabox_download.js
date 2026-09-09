@@ -78,6 +78,7 @@ async function main() {
       acceptDownloads: true,
       userAgent: UA,
       locale: "en-US",
+      ...(process.env.DOWNLOAD_PROXY ? { proxy: { server: process.env.DOWNLOAD_PROXY } } : {}),
     });
     await context.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => undefined });

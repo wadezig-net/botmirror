@@ -3,7 +3,7 @@ import time
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import task_registry, task_history
-from utils import get_progress_bar, format_bytes, format_duration, is_owner_or_premium
+from utils import get_progress_bar, format_bytes, format_duration, is_owner_or_premium, free_quota_status_line
 from system_stats import render_system_block
 
 
@@ -53,6 +53,10 @@ async def render_status(ctx, status_label, percent=None, processed=None, total=N
     lines.append(f"🆔 UserID: [{ctx['user_id']}]")
     lines.append(f"⏱ Waktu: {elapsed}")
 
+    quota_line = free_quota_status_line(ctx.get("user_id"))
+    if quota_line:
+        lines.append(quota_line)
+
     if total:
         lines.append(f"📦 Ukuran: {format_bytes(total)}")
     if processed is not None:
@@ -94,6 +98,9 @@ def render_status_overview():
                 f"   👤 {mention_display} | ⏱ {elapsed}\n"
                 f"   /cancel_{ctx['request_id']}"
             )
+            quota_line = free_quota_status_line(ctx.get("user_id"))
+            if quota_line:
+                lines.append(f"   {quota_line}")
     else:
         lines.append("📡 **Task Aktif**\nTidak ada task yang lagi jalan.")
 

@@ -1,0 +1,296 @@
+[
+  {
+    "emoji": "❌",
+    "style": "bounce",
+    "file": "cross_mark.tgs",
+    "bytes": 1199
+  },
+  {
+    "emoji": "⚠️",
+    "style": "bounce",
+    "file": "warning_sign.tgs",
+    "bytes": 1022
+  },
+  {
+    "emoji": "✅",
+    "style": "bounce",
+    "file": "white_heavy_check_mark.tgs",
+    "bytes": 2568
+  },
+  {
+    "emoji": "💎",
+    "style": "bounce",
+    "file": "gem_stone.tgs",
+    "bytes": 6630
+  },
+  {
+    "emoji": "📁",
+    "style": "bounce",
+    "file": "file_folder.tgs",
+    "bytes": 1517
+  },
+  {
+    "emoji": "📦",
+    "style": "bounce",
+    "file": "package.tgs",
+    "bytes": 9061
+  },
+  {
+    "emoji": "🚫",
+    "style": "bounce",
+    "file": "no_entry_sign.tgs",
+    "bytes": 2156
+  },
+  {
+    "emoji": "🔒",
+    "style": "bounce",
+    "file": "lock.tgs",
+    "bytes": 3417
+  },
+  {
+    "emoji": "📤",
+    "style": "bounce",
+    "file": "outbox_tray.tgs",
+    "bytes": 4669
+  },
+  {
+    "emoji": "❤️",
+    "style": "bounce",
+    "file": "heavy_black_heart.tgs",
+    "bytes": 1280
+  },
+  {
+    "emoji": "📥",
+    "style": "bounce",
+    "file": "inbox_tray.tgs",
+    "bytes": 4704
+  },
+  {
+    "emoji": "👤",
+    "style": "bounce",
+    "file": "bust_in_silhouette.tgs",
+    "bytes": 1368
+  },
+  {
+    "emoji": "⏱",
+    "style": "bounce",
+    "file": "stopwatch.tgs",
+    "bytes": 12915
+  },
+  {
+    "emoji": "⏳",
+    "style": "bounce",
+    "file": "hourglass_with_flowing_sand.tgs",
+    "bytes": 8283
+  },
+  {
+    "emoji": "🟢",
+    "style": "bounce",
+    "file": "large_green_circle.tgs",
+    "bytes": 1809
+  },
+  {
+    "emoji": "🌐",
+    "style": "bounce",
+    "file": "globe_with_meridians.tgs",
+    "bytes": 3366
+  },
+  {
+    "emoji": "☕",
+    "style": "bounce",
+    "file": "hot_beverage.tgs",
+    "bytes": 13716
+  },
+  {
+    "emoji": "🔗",
+    "style": "bounce",
+    "file": "link_symbol.tgs",
+    "bytes": 18727
+  },
+  {
+    "emoji": "🔄",
+    "style": "bounce",
+    "file": "anticlockwise_downwards_and_upwards_open_circle_arrows.tgs",
+    "bytes": 4554
+  },
+  {
+    "emoji": "📡",
+    "style": "bounce",
+    "file": "satellite_antenna.tgs",
+    "bytes": 12572
+  },
+  {
+    "emoji": "⬇",
+    "style": "bounce",
+    "file": "downwards_black_arrow.tgs",
+    "bytes": 2673
+  },
+  {
+    "emoji": "⬆",
+    "style": "bounce",
+    "file": "upwards_black_arrow.tgs",
+    "bytes": 2819
+  },
+  {
+    "emoji": "🙏",
+    "style": "bounce",
+    "file": "person_with_folded_hands.tgs",
+    "bytes": 4677
+  },
+  {
+    "emoji": "🗑",
+    "style": "bounce",
+    "file": "wastebasket.tgs",
+    "bytes": 29896
+  },
+  {
+    "emoji": "📊",
+    "style": "bounce",
+    "file": "bar_chart.tgs",
+    "bytes": 4512
+  },
+  {
+    "emoji": "✏",
+    "style": "bounce",
+    "file": "pencil.tgs",
+    "bytes": 3829
+  },
+  {
+    "emoji": "☁",
+    "style": "bounce",
+    "file": "cloud.tgs",
+    "bytes": 1218
+  },
+  {
+    "emoji": "📨",
+    "style": "bounce",
+    "file": "incoming_envelope.tgs",
+    "bytes": 6358
+  },
+  {
+    "emoji": "📄",
+    "style": "bounce",
+    "file": "page_facing_up.tgs",
+    "bytes": 2040
+  },
+  {
+    "emoji": "💡",
+    "style": "bounce",
+    "file": "electric_light_bulb.tgs",
+    "bytes": 8072
+  },
+  {
+    "emoji": "⚙",
+    "style": "bounce",
+    "file": "gear.tgs",
+    "bytes": 9353
+  },
+  {
+    "emoji": "🚀",
+    "style": "bounce",
+    "file": "rocket.tgs",
+    "bytes": 11688
+  },
+  {
+    "emoji": "🔧",
+    "style": "bounce",
+    "file": "wrench.tgs",
+    "bytes": 6700
+  },
+  {
+    "emoji": "🏷",
+    "style": "bounce",
+    "file": "label.tgs",
+    "bytes": 6121
+  },
+  {
+    "emoji": "🔹",
+    "style": "bounce",
+    "file": "small_blue_diamond.tgs",
+    "bytes": 778
+  },
+  {
+    "emoji": "🗂",
+    "style": "bounce",
+    "file": "card_index_dividers.tgs",
+    "bytes": 2601
+  },
+  {
+    "emoji": "❔",
+    "style": "bounce",
+    "file": "white_question_mark_ornament.tgs",
+    "bytes": 5434
+  },
+  {
+    "emoji": "🎁",
+    "style": "bounce",
+    "file": "wrapped_present.tgs",
+    "bytes": 6334
+  },
+  {
+    "emoji": "🧾",
+    "style": "bounce",
+    "file": "receipt.tgs",
+    "bytes": 12606
+  },
+  {
+    "emoji": "⚡",
+    "style": "bounce",
+    "file": "high_voltage_sign.tgs",
+    "bytes": 1359
+  },
+  {
+    "emoji": "📖",
+    "style": "bounce",
+    "file": "open_book.tgs",
+    "bytes": 11583
+  },
+  {
+    "emoji": "⏩",
+    "style": "bounce",
+    "file": "black_rightpointing_double_triangle.tgs",
+    "bytes": 627
+  },
+  {
+    "emoji": "📂",
+    "style": "bounce",
+    "file": "open_file_folder.tgs",
+    "bytes": 1465
+  },
+  {
+    "emoji": "⭐",
+    "style": "bounce",
+    "file": "white_medium_star.tgs",
+    "bytes": 1652
+  },
+  {
+    "emoji": "👑",
+    "style": "bounce",
+    "file": "crown.tgs",
+    "bytes": 10716
+  },
+  {
+    "emoji": "🛡",
+    "style": "bounce",
+    "file": "shield.tgs",
+    "bytes": 24891
+  },
+  {
+    "emoji": "🧲",
+    "style": "bounce",
+    "file": "magnet.tgs",
+    "bytes": 1545
+  },
+  {
+    "emoji": "📭",
+    "style": "bounce",
+    "file": "open_mailbox_with_lowered_flag.tgs",
+    "bytes": 2861
+  },
+  {
+    "emoji": "🔍",
+    "style": "bounce",
+    "file": "leftpointing_magnifying_glass.tgs",
+    "bytes": 7084
+  }
+]

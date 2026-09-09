@@ -72,7 +72,7 @@ def _check_early_access(user_id, file_size_bytes):
                 None,
                 f"❌ File ini {file_size_bytes/1024**3:.2f} GB, lewat batas gratis "
                 f"({FREE_MAX_FILE_GB} GB).\n\nButuh saldo {cost:.2f} 💎 buat mirror file ini. "
-                f"{_owner_prompt()}",
+                f"{owner_prompt()}",
             )
         # saldo cukup -> lanjut; potong di upload_select
         return True, None, None
@@ -86,9 +86,11 @@ def _check_early_access(user_id, file_size_bytes):
         return (
             False,
             None,
-            f"{reason}\n\nHari ini kamu udah pakai "
+            f"Hari ini kamu udah pakai "
             f"{get_daily_usage(user_id)['count']}/{FREE_QUOTA_PER_DAY} mirror gratis.\n"
-            f"Topup saldo (mulai {cost:.2f} 💎) buat mirror lagi. {_owner_prompt()}",
+            f"Topup saldo 20k/bulan biar bisa akses premium mirror lagi. "
+            f"Gunakan /topup dan hub @waaadezig untuk aktivasi premium.\n"
+            f"❤️happy mirror❤️",
         )
 
     return True, None, None
@@ -172,6 +174,7 @@ async def mirror(client, message):
     # ---- Terabox: tampilkan daftar file sebelum lanjut ----
     if url and any(d in domain for d in TERABOX_DOMAINS):
         await _handle_terabox_preview(message, url)
+        return  # <-- STOP di sini, tunggu callback user
 
     # ---- Deteksi ukuran awal (early check) ----
     early_size = _media_size(replied)
@@ -274,11 +277,10 @@ async def _handle_terabox_preview(message, url):
             [InlineKeyboardButton("❌ Batal", callback_data=f"terabox_cancel:{request_id}")],
         ])
 
-        # Potong daftar jika terlalu panjang untuk satu pesan
+        # Kirim summary + dokumen daftar file
+        title = result.get("title", "Folder Terabox")
         file_count = result.get("totalFiles", 0)
         folder_count = result.get("totalFolders", 0)
-        title = result.get("title", "Folder Terabox")
-
         summary = (
             f"📁 **{title}**\n\n"
             f"📂 Folder: `{folder_count}`\n"
@@ -288,6 +290,18 @@ async def _handle_terabox_preview(message, url):
         )
 
         await message.reply(summary, reply_markup=keyboard)
+
+        # Kirim file list sebagai dokumen (teks)
+        file_list_path = os.path.join(work_dir, "file_list_text.txt")
+        if os.path.isfile(file_list_path):
+            try:
+                await message.reply_document(
+                    document=file_list_path,
+                    filename="terabox_file_list.txt",
+                    caption=f"Daftar {file_count} file dari {title}",
+                )
+            except Exception:
+                pass  # Kalau gagal kirim dokumen, tidak gentle
 
         # Simpan result di pending_upload supaya bisa diakses oleh callback handler
         pending_upload[request_id] = {

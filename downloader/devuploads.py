@@ -34,6 +34,44 @@ async def devuploads_download(url, work_dir, ctx):
         NODE_BIN, DEVUPLOADS_SCRIPT, url, work_dir, ctx,
         timeout=180,
     )
-    # Devuploads nge-throttle free-user ~1 Mbps/koneksi; URL dukung Range (206),
-    # jadi dipartisi jadi 8 koneksi paralel via aria2c biar gak lemot.
-    return await download_resolved_link_aria2(result, work_dir, ctx)
+    # Devuploads nge-throttle free-user. Dulu per-koneksi (~1 Mbps) dan paralel
+    # aria2 bantu (kali lipat); sekarang yang sering terjadi throttle PER-IP
+    # global (~1.0-1.1 MiB/s), jadi koneksi sebanyak apa pun sama saja. Karena
+    # itu strateginya: coba 2x resolve untuk dapet node yang kenceng; kalau
+    # semua lemot, JANGAN gagal -- cukup selesaikan secepat server mau kasih
+    # (lambat tapi file-nya tetap jadi).
+    for attempt in (1, 2):
+        await render_status(
+            ctx, f"🌐 Mencari node download Devuploads (percobaan {attempt}/2)"
+        )
+        if attempt > 1:
+            result = await run_node_link_finder(
+                NODE_BIN, DEVUPLOADS_SCRIPT, url, work_dir, ctx,
+                timeout=180,
+            )
+        filepath = await download_resolved_link_aria2(
+            result, work_dir, ctx,
+            connections=12,
+            min_speed_bps=1.5 * 1024 * 1024,  # jauh di bawah kecepatan paralel normal
+            slow_window_s=25,
+        )
+        if filepath:
+            return filepath
+        await render_status(ctx, "♻️ Node lambat, ganti node baru...")
+
+    # Semua node lemot (throttle per-IP). Tetap lanjut download tanpa watchdog
+    # biar file-nya jadi, walau lambat (~1 MiB/s).
+    await render_status(
+        ctx, "⚠️ Semua node Devuploads lagi lambat (per-IP throttle); download diteruskan apa adanya..."
+    )
+    filepath = await download_resolved_link_aria2(
+        result, work_dir, ctx,
+        connections=12,
+    )
+    if filepath:
+        return filepath
+
+    raise Exception(
+        "Gagal download dari Devuploads. Server lagi overload / throttle IP "
+        "untuk file ini; coba lagi beberapa menit lagi."
+    )

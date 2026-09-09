@@ -20,6 +20,20 @@ const fs = require("fs");
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
 
+// Proxy tunggal dari env (DOWNLOAD_PROXY http://user:pass@host:port) dipakaikan
+// ke semua request via undici dispatcher. Undici >= 6.11 mendukung connect.proxyUrl.
+let dispatcher = undefined;
+try {
+  if (process.env.DOWNLOAD_PROXY) {
+    const undici = require("undici");
+    dispatcher = new undici.Agent({
+      connect: { proxyUrl: process.env.DOWNLOAD_PROXY },
+    });
+  }
+} catch (_) {
+  dispatcher = undefined;
+}
+
 // cookie jar sederhana (Map domain -> Map name:value)
 const cookieJar = new Map();
 
@@ -67,7 +81,13 @@ async function req(url, { method = "GET", headers = {}, body } = {}) {
     h["Content-Type"] = "application/x-www-form-urlencoded";
     h["Content-Length"] = String(body.length);
   }
-  const res = await fetch(url, { method, headers: h, body, redirect: "follow" });
+  const res = await fetch(url, {
+    method,
+    headers: h,
+    body,
+    redirect: "follow",
+    ...(dispatcher ? { dispatcher } : {}),
+  });
   jarSet(res.url || url, res.headers.getSetCookie ? res.headers.getSetCookie() : []);
   const text = await res.text();
   return { status: res.status, url: res.url || url, text };

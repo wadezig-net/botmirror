@@ -8,6 +8,7 @@ import requests
 
 from status_ui import render_status
 from utils import clean_filename
+from config import proxy_env, requests_proxies
 
 # regex baris progress aria2c (--console-log-level=notice --summary-interval=2):
 #   [#a1b2c3 45.2MiB/141MiB(32%) CN:8 DL:2.4MiB ETA:0s]
@@ -58,7 +59,9 @@ async def run_node_link_finder(node_bin, script_path, url, work_dir, ctx, timeou
     detik), status di Telegram di-update berkala biar nggak keliatan freeze.
     Return: dict hasil parse JSON dari stdout script node.
     """
-    proc_env = {**os.environ, **extra_env} if extra_env else None
+    proc_env = {**os.environ, **proxy_env()}
+    if extra_env:
+        proc_env.update(extra_env)
     proc = await asyncio.create_subprocess_exec(
         node_bin, script_path, url, work_dir,
         stdout=asyncio.subprocess.PIPE,
@@ -145,35 +148,50 @@ async def download_resolved_link(result, work_dir, ctx):
     loop = asyncio.get_running_loop()
 
     def do_download():
-        start = time.monotonic()
-        last_update = [0.0]
-        with requests.get(direct_url, headers=headers, cookies=cookies, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("content-length", 0))
-            downloaded = 0
-            with open(filepath, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1024 * 256):
-                    if not chunk:
-                        continue
-                    f.write(chunk)
-                    downloaded += len(chunk)
+        # direct-first: jalur langsung dulu (lebih cepat), retry sekali lewat
+        # proxy kalau langsung gagal (host yang di blokir baru butuh proxy).
+        prox = requests_proxies()
+        attempts = [None] + ([prox] if prox else [])
+        for attempt_idx, proxy in enumerate(attempts):
+            try:
+                start = time.monotonic()
+                last_update = [0.0]
+                with requests.get(direct_url, headers=headers, cookies=cookies,
+                                  stream=True, timeout=60, proxies=proxy) as r:
+                    r.raise_for_status()
+                    total = int(r.headers.get("content-length", 0))
+                    downloaded = 0
+                    with open(filepath, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=1024 * 256):
+                            if not chunk:
+                                continue
+                            f.write(chunk)
+                            downloaded += len(chunk)
 
-                    now = time.monotonic()
-                    if now - last_update[0] < 2.5 and downloaded < total:
-                        continue
-                    last_update[0] = now
+                            now = time.monotonic()
+                            if now - last_update[0] < 2.5 and downloaded < total:
+                                continue
+                            last_update[0] = now
 
-                    elapsed = max(now - start, 0.001)
-                    speed = downloaded / elapsed
-                    percent = (downloaded / total * 100) if total else 0
-                    asyncio.run_coroutine_threadsafe(
-                        render_status(
-                            ctx, "Download", percent=percent,
-                            processed=downloaded, total=total, speed=speed,
-                        ),
-                        loop,
-                    )
-        return filepath
+                            elapsed = max(now - start, 0.001)
+                            speed = downloaded / elapsed
+                            percent = (downloaded / total * 100) if total else 0
+                            asyncio.run_coroutine_threadsafe(
+                                render_status(
+                                    ctx, "Download", percent=percent,
+                                    processed=downloaded, total=total, speed=speed,
+                                ),
+                                loop,
+                            )
+                return filepath
+            except Exception:
+                if attempt_idx >= len(attempts) - 1:
+                    raise
+                try:
+                    if os.path.isfile(filepath):
+                        os.remove(filepath)
+                except OSError:
+                    pass
 
     return await asyncio.to_thread(do_download)
 
@@ -195,13 +213,20 @@ async def _aria2_parse_line(line):
     return percent, processed, speed
 
 
-async def download_resolved_link_aria2(result, work_dir, ctx, connections=8):
+async def download_resolved_link_aria2(result, work_dir, ctx, connections=8,
+                                       min_speed_bps=None, slow_window_s=45):
     """
     Variant download untuk host yang nge-throttle bandwidth per-koneksi (mis.
     Devuploads: free user ~1 Mbps/koneksi). URL yang mendukung Range (server
     balas 206) bisa dipartisi jadi beberapa koneksi paralel -- total bandwidth
     jadi kelipatan hingga ~8-16x. Butuh aria2c terinstal; pakai internal parser
     progress biar panel Telegram tetap update.
+
+    Kalau min_speed_bps diset, download dianggap "lemot" bila SELURUH throughput
+    (semua koneksi) < ambang itu selama slow_window_s -- proses di-kill dan
+    return None supaya caller bisa resolve URL baru (token/backend lain) lalu
+    retry. Return None juga kalau server nolak Range (fallback single-connection
+    di-handle caller via download_resolved_link).
     """
     aria2 = shutil.which("aria2c")
     if not aria2:
@@ -214,59 +239,122 @@ async def download_resolved_link_aria2(result, work_dir, ctx, connections=8):
     await render_status(ctx, f"🔗 Mendownload {connections} koneksi paralel (aria2c)")
 
     filepath = os.path.join(work_dir, filename)
-    cmd = [
-        aria2,
-        "--no-conf",
-        "--summary-interval", "2",
-        "--console-log-level=notice",
-        "-x", str(connections),
-        "-s", str(connections),
-        "-k", "1M",
-        "--dir", work_dir,
-        "--out", filename,
-        "--file-allocation=none",
-        "--allow-overwrite=true",
-        "--auto-file-renaming=false",
-        "--max-tries", "5",
-        "--retry-wait", "3",
-        "--timeout", "30",
-        "--connect-timeout", "15",
-        "--header", f"Referer: {referer}",
-        "--header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        direct_url,
-    ]
 
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-    ctx["process"] = process
-    dl_last_update = [0.0]
+    async def run_once(proxy_url=None):
+        cmd = [
+            aria2,
+            "--no-conf",
+            "--summary-interval", "2",
+            "--console-log-level=notice",
+            "-x", str(connections),
+            "-s", str(connections),
+            "-k", "1M",
+            "--dir", work_dir,
+            "--out", filename,
+            "--file-allocation=none",
+            "--allow-overwrite=true",
+            "--auto-file-renaming=false",
+            "--max-tries", "5",
+            "--retry-wait", "3",
+            "--timeout", "30",
+            "--connect-timeout", "15",
+            "--header", f"Referer: {referer}",
+            "--header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        ]
+        if proxy_url:
+            cmd += ["--all-proxy", proxy_url]
+        cmd.append(direct_url)
 
-    try:
-        async for raw_line in process.stdout:
-            line = raw_line.decode(errors="ignore")
-            print(line, end="")
-            parsed = await _aria2_parse_line(line)
-            if not parsed:
-                continue
-            percent, processed, speed = parsed
-            now = time.monotonic()
-            if now - dl_last_update[0] < 2.5 and percent < 100:
-                continue
-            dl_last_update[0] = now
-            await render_status(
-                ctx, "Download", percent=percent,
-                processed=processed, speed=speed,
-            )
-        await process.wait()
-    finally:
-        ctx["process"] = None
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        ctx["process"] = process
+        dl_last_update = [0.0]
+        samples = []
+        slow_killed = [False]
+        saw_http_status = [False]
 
-    if process.returncode != 0 or not os.path.isfile(filepath) or os.path.getsize(filepath) == 0:
+        try:
+            async for raw_line in process.stdout:
+                line = raw_line.decode(errors="ignore")
+                print(line, end="")
+                if "status=" in line or "not successful" in line:
+                    saw_http_status[0] = True
+                parsed = await _aria2_parse_line(line)
+                if not parsed:
+                    continue
+                percent, processed, speed = parsed
+                samples.append((time.monotonic(), processed))
+                if min_speed_bps and len(samples) > 2:
+                    t0, b0 = samples[0]
+                    elapsed = time.monotonic() - t0
+                    if elapsed >= slow_window_s:
+                        aggr = (processed - b0) / elapsed
+                        if aggr < min_speed_bps and percent < 100:
+                            slow_killed[0] = True
+                            await render_status(
+                                ctx,
+                                f"⚠️ Kecepatan terlalu rendah ({aggr / 1024 / 1024:.1f} MiB/s), "
+                                f"meminta link baru...",
+                            )
+                            process.kill()
+                            break
+                        samples.pop(0)
+                now = time.monotonic()
+                if now - dl_last_update[0] < 2.5 and percent < 100:
+                    continue
+                dl_last_update[0] = now
+                try:
+                    await render_status(
+                        ctx, "Download", percent=percent,
+                        processed=processed, speed=speed,
+                    )
+                except Exception:
+                    pass
+            await process.wait()
+        finally:
+            ctx["process"] = None
+
+        if slow_killed[0]:
+            return "slow", None
+        if saw_http_status[0]:
+            # server SUDAH merespons (403/503 dll) -- proxy nggak akan nolong,
+            # langsung fallback single-connection tanpa buang waktu retry proxy.
+            return "fail", None
+        if process.returncode != 0 or not os.path.isfile(filepath) or os.path.getsize(filepath) == 0:
+            return "fail", None
+        return "ok", filepath
+
+    # direct-first (JAJUR LANGSUNG lebih cepat buat host yang bisa); proxy cuma
+    # fallback kalau jalur langsung gagal / ke-block.
+    status, out = await run_once()
+    if status == "ok":
+        return out
+
+    for attempt in (filepath, filepath + ".aria2"):
+        try:
+            os.remove(attempt)
+        except OSError:
+            pass
+
+    if status == "fail":
+        proxy = requests_proxies()
+        if proxy:
+            p_url = proxy["https"] or proxy["http"]
+            await render_status(ctx, f"🔄 Mencoba {p_url.split('@')[-1][:40]}...")
+            status, out = await run_once(p_url)
+            if status == "ok":
+                return out
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
         # gagal paralel (mis. server nolak Range) -> fallback single-connection
         return await download_resolved_link(result, work_dir, ctx)
 
-    return filepath
+    # slow_killed: download lemot (tersangkut di node throttled) -> caller
+    # resolve URL baru & retry
+    return None

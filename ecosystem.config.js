@@ -1,0 +1,36 @@
+module.exports = {
+  apps: [
+    {
+      name: 'botmirror',
+      cwd: '/root/botmirror',
+      script: '/root/botmirror/bot.py',
+      interpreter: '/root/botmirror/venv/bin/python',
+      autorestart: true,
+      max_restarts: 20,
+      restart_delay: 5000,
+      min_uptime: 10000,
+      merge_logs: true,
+      time: true,
+      kill_timeout: 10000,
+      env: {
+        PYTHONUNBUFFERED: '1',
+      },
+    },
+    {
+      name: 'jdownloader',
+      cwd: '/opt/jdownloader',
+      script: '/usr/bin/java',
+      interpreter: '',
+      args: '-Djava.awt.headless=true -jar JDownloader.jar',
+      autorestart: true,
+      max_restarts: 20,
+      restart_delay: 10000,
+      min_uptime: 30000,
+      time: true,
+      kill_timeout: 20000,
+      env: {
+        PATH: process.env.PATH || '',
+      },
+    },
+  ],
+};
