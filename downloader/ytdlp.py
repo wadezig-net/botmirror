@@ -157,10 +157,14 @@ async def download_via_url(url, work_dir, ctx):
         "--downloader", "ffmpeg:hls",
         # reconnect otomatis kalau koneksi ke server drop di tengah fragment
         "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
-        # YouTube web client butuh po-token/signature solving (EJS) yang suka
-        # gagal di VPS -> "Signature solving failed" / "page needs to be reloaded".
-        # Client TV tidak lewat challenge itu dan stabil; ios fallback cadangan.
-        "--extractor-args", "youtube:player_client=tv,ios,default",
+        # YouTube: client yang dipake nentuin ketersediaan format.
+        # - web_creator: khusus akun logged-in, ngasih format high-res penuh
+        #   tanpa butuh po-token (kandidat utama kalo cookies aktif).
+        # - tv: HLS penuh (1080p+), tapi kena sesekali kena eksperimen
+        #   SABR/SSAP (issue #12482) -> kita simpan sebagai fallback.
+        # - mweb/android: nggak kena SABR, ngasih minimal itag 18 (360p).
+        # po-token/web-client butuh EJS + runtime JS yang di VPS suka gagal.
+        "--extractor-args", "youtube:player_client=web_creator,tv,mweb,android",
         # mitigasi buat bug TikTok "Unexpected response from webpage request" yang lagi
         # rame dilaporin ke yt-dlp (issue #17403 dkk, per Agustus 2026, belum ada fix resmi).
         # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya terkait
