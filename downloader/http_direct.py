@@ -173,6 +173,7 @@ async def generic_http_download(url, work_dir, ctx, headers=None):
         # direct-first; retry sekali lewat proxy kalau koneksi langsung gagal
         prox = requests_proxies()
         attempts = [None] + ([prox] if prox else [])
+        filepath = None
         for attempt_idx, proxy in enumerate(attempts):
             try:
                 with requests.get(url, stream=True, timeout=60, headers=headers or {},
@@ -233,9 +234,10 @@ async def generic_http_download(url, work_dir, ctx, headers=None):
                 if attempt_idx >= len(attempts) - 1:
                     raise
                 try:
-                    for leftover in (filepath, filepath + ".aria2"):
-                        if os.path.isfile(leftover):
-                            os.remove(leftover)
+                    if filepath is not None:
+                        for leftover in (filepath, filepath + ".aria2"):
+                            if os.path.isfile(leftover):
+                                os.remove(leftover)
                 except OSError:
                     pass
 
