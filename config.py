@@ -377,6 +377,12 @@ def _start_pool_refresher():
     _proxy_refresher_started[0] = True
 
     def _runner():
+        if not _pool:
+            _time.sleep(5)  # VPS baru: state file kosong, hangatkan pool dulu
+            try:
+                _refresh_pool()
+            except Exception:
+                pass
         while True:
             _time.sleep(PROXY_REFRESH_INTERVAL)
             try:
