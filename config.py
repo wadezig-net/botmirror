@@ -3,6 +3,16 @@ from collections import deque
 from pyrogram import Client
 from dotenv import load_dotenv
 
+# VPS/datacenter sering nggak punya route IPv6 ke host tertentu (YouTube/Google),
+# sementara urllib3/requests coba alamat IPv6 dulu -> hang sampai timeout lalu
+# jatuh ke proxy fallback (yang bisa MITM). Paksa IPv4 buat semua requests,
+# sejalan dengan --force-ipv4 yang sudah dipakai yt-dlp.
+try:
+    import urllib3.util.connection as _uc
+    _uc.HAS_IPV6 = False
+except Exception:
+    pass
+
 load_dotenv()
 
 API_ID = int(os.getenv("API_ID"))
