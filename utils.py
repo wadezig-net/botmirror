@@ -4,12 +4,36 @@ import os
 import time
 from datetime import date
 
-from config import task_registry
+from config import task_registry, OWNER_ID
 
 
 USER_DB = "database/users.json"
 QUOTA_DB = "database/quota.json"
 BALANCE_DB = "database/balance.json"
+
+# Folder database/ isi runtime (quota/users/balance) nggak di-track git.
+# Di instalasi baru (VPS fresh) folder-nya belum ada -> pastikan dibuat +
+# file default ikut di-seed biar nggak "No such file or directory".
+for _db_path in (USER_DB, QUOTA_DB, BALANCE_DB):
+    os.makedirs(os.path.dirname(_db_path), exist_ok=True)
+    if not os.path.exists(_db_path):
+        try:
+            with open(_db_path, "w") as _f:
+                json.dump({}, _f, indent=4)
+        except OSError:
+            pass
+
+# Kalau users.json baru/dihapus datanya kosong, isi owner dari .env biar
+# pemilik nggak ke-lock-out gara-gara daftar owner kosong.
+try:
+    with open(USER_DB) as _f:
+        _users_db = json.load(_f)
+    if _users_db.get("owner") == [] and isinstance(_users_db, dict):
+        _users_db["owner"] = [OWNER_ID]
+        with open(USER_DB, "w") as _f:
+            json.dump(_users_db, _f, indent=4)
+except Exception:
+    pass
 
 # ---- Konfigurasi paywall mirror ----
 FREE_QUOTA_PER_DAY = 2       # berapa file gratis per user per hari
