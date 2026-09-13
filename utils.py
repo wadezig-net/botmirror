@@ -100,7 +100,14 @@ def load_users():
         }
 
     with open(USER_DB, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # Selalu jamin shape lengkap biar kode yang pakai data["owner"]
+    # (utils.py dan handlers/admin.py) nggak kena KeyError.
+    data.setdefault("owner", [])
+    data.setdefault("admins", [])
+    data.setdefault("premium", [])
+    return data
 
 
 def save_users(data):
