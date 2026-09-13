@@ -150,8 +150,14 @@ async def download_via_url(url, work_dir, ctx):
         "--retry-sleep", "fragment:2",
         "--retries", "10",
         "--extractor-retries", "5",
+        # Downloader HLS paksa ffmpeg. Server fragment YouTube/M3U8 sering nge-403
+        # downloader native yt-dlp dari IP datacenter (VPS); ffmpeg dengan reconnect
+        # + retry jauh lebih toleran. Proto lain (http/dash) tetap native.
+        "--downloader", "ffmpeg:hls",
         # reconnect otomatis kalau koneksi ke server drop di tengah fragment
-        "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+        "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
+        # YouTube kadang butuh fallback client (iOS) biar nggak kena blokir selamanya
+        "--extractor-args", "youtube:player_client=default,ios",
         # mitigasi buat bug TikTok "Unexpected response from webpage request" yang lagi
         # rame dilaporin ke yt-dlp (issue #17403 dkk, per Agustus 2026, belum ada fix resmi).
         # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya terkait
