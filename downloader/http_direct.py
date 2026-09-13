@@ -174,6 +174,7 @@ async def generic_http_download(url, work_dir, ctx, headers=None):
         prox = requests_proxies()
         attempts = [None] + ([prox] if prox else [])
         filepath = None
+        last_err = None
         for attempt_idx, proxy in enumerate(attempts):
             try:
                 with requests.get(url, stream=True, timeout=60, headers=headers or {},
@@ -230,7 +231,11 @@ async def generic_http_download(url, work_dir, ctx, headers=None):
                             )
 
                     return filepath
-            except Exception:
+            except Exception as e:
+                if proxy is None:
+                    last_err = e
+                elif last_err is not None:
+                    raise last_err from e
                 if attempt_idx >= len(attempts) - 1:
                     raise
                 try:
