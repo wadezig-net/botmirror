@@ -28,7 +28,7 @@ for _db_path in (USER_DB, QUOTA_DB, BALANCE_DB):
 try:
     with open(USER_DB) as _f:
         _users_db = json.load(_f)
-    if _users_db.get("owner") == [] and isinstance(_users_db, dict):
+    if isinstance(_users_db, dict) and not _users_db.get("owner"):
         _users_db["owner"] = [OWNER_ID]
         with open(USER_DB, "w") as _f:
             json.dump(_users_db, _f, indent=4)
@@ -117,8 +117,8 @@ def is_admin(user_id):
     data = load_users()
 
     return (
-        user_id in data["owner"]
-        or user_id in data["admins"]
+        user_id in data.get("owner", [])
+        or user_id in data.get("admins", [])
     )
 
 
@@ -127,9 +127,9 @@ def is_premium(user_id):
     data = load_users()
 
     return (
-        user_id in data["owner"]
-        or user_id in data["admins"]
-        or user_id in data["premium"]
+        user_id in data.get("owner", [])
+        or user_id in data.get("admins", [])
+        or user_id in data.get("premium", [])
     )
 
 
