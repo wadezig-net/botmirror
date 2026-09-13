@@ -139,7 +139,6 @@ async def download_via_url(url, work_dir, ctx):
     cmd = [
         YTDLP_BIN,
         "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
         "-f", "bestvideo[height<=1080]+bestaudio/best",
         "--merge-output-format", "mp4",
         "--no-playlist",
@@ -158,13 +157,16 @@ async def download_via_url(url, work_dir, ctx):
         # reconnect otomatis kalau koneksi ke server drop di tengah fragment
         "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
         # YouTube: client yang dipake nentuin ketersediaan format.
-        # - web_creator: khusus akun logged-in, ngasih format high-res penuh
-        #   tanpa butuh po-token (kandidat utama kalo cookies aktif).
-        # - tv: HLS penuh (1080p+), tapi kena sesekali kena eksperimen
-        #   SABR/SSAP (issue #12482) -> kita simpan sebagai fallback.
-        # - mweb/android: nggak kena SABR, ngasih minimal itag 18 (360p).
-        # po-token/web-client butuh EJS + runtime JS yang di VPS suka gagal.
-        "--extractor-args", "youtube:player_client=web_creator,tv,mweb,android",
+        # - tv: HLS penuh (1080p+), nggak butuh po-token.
+        # - ios: fallback pertama kalau tv lagi kena eksperimen SABR (#12482).
+        # - android: nggak kena SABR & nggak butuh po-token, tapi makan
+        #   cookies -> cuma itag 18 (360p) sebagai safety net.
+        # web_creator & mweb DIHAPUS karena sekarang wajib GVS PO Token yang
+        # nggak kita punya (akan 403 / blank).
+        # Catatan: EJS solver itu built-in di yt-dlp, jadi TIDAK pakai
+        # --remote-components ejs:github (yang tiap run download dari GitHub --
+        # di VPS suka gagal => "challenge solver distribution" hilang).
+        "--extractor-args", "youtube:player_client=tv,ios,android",
         # mitigasi buat bug TikTok "Unexpected response from webpage request" yang lagi
         # rame dilaporin ke yt-dlp (issue #17403 dkk, per Agustus 2026, belum ada fix resmi).
         # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya terkait
