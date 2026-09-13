@@ -65,4 +65,4 @@ typing_extensions==4.16.0
 uritemplate==4.2.0
 urllib3==2.7.0
 w3lib==2.4.1
-yt-dlp @ https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz#sha256=9654cfaaf8a529b13fda161e8084befa1b2c4d25f86815361ac9b8fef4ccdaad
+yt-dlp==2026.8.19
