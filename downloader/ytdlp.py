@@ -3,6 +3,7 @@ import re
 import time
 import asyncio
 import sys
+import collections
 from urllib.parse import urlparse
 
 from config import COOKIE_FILE
@@ -179,6 +180,7 @@ async def download_via_url(url, work_dir, ctx):
 
     downloaded_file = None
     dl_last_update = [0.0]  # throttle biar nggak spam edit_text -> kena FLOOD_WAIT
+    out_buf = collections.deque(maxlen=500)  # tail output buat diagnosa kegagalan
 
     # PM2 menyuntikkan env var IPC (NODE_CHANNEL_FD, dll) ke proses yang dia jalankan.
     # Kalau ini ikut diwariskan ke subprocess deno/node yang dipanggil yt-dlp untuk
@@ -202,6 +204,7 @@ async def download_via_url(url, work_dir, ctx):
         async for raw_line in process.stdout:
             line = raw_line.decode(errors="ignore")
             print(line, end="")
+            out_buf.append(line)
 
             if "[download]" in line and "%" in line:
                 match = DL_PROGRESS_RE.search(line)
@@ -297,8 +300,18 @@ async def download_via_url(url, work_dir, ctx):
                     except Exception:
                         downloaded_file = await generic_http_download(url, work_dir, ctx)
             except Exception as fallback_err:
+                ytdlp_tail = "\n".join(list(out_buf)[-40:])
+                try:
+                    import os as _os
+                    _log_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "logs")
+                    _os.makedirs(_log_dir, exist_ok=True)
+                    with open(_os.path.join(_log_dir, "ytdlp_last_err.log"), "w") as _f:
+                        _f.write(ytdlp_tail or "(kosong)")
+                except Exception:
+                    pass
                 raise Exception(
                     f"yt-dlp gagal & direct download juga gagal: {fallback_err}"
+                    + (f"\n\n—— yt-dlp ———\n{ytdlp_tail[-2500:]}" if ytdlp_tail else "")
                 )
         else:
             raise Exception("yt-dlp gagal. Cek pm2 logs")
