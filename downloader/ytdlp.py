@@ -136,58 +136,50 @@ async def download_via_url(url, work_dir, ctx):
 
     output_template = f"{work_dir}/%(title)s.%(ext)s"
 
-    cmd = [
-        YTDLP_BIN,
-        "--js-runtimes", "node",
-        "-f", "bestvideo[height<=1080]+bestaudio/best",
-        "--merge-output-format", "mp4",
-        "--no-playlist",
-        "--newline",
-        # HLS/m3u8 stream (TikTok, IG, dll) suka gagal ambil fragment terakhir
-        # kalau cuma retry beberapa kali doang -> paksa retry terus + kasih jeda
-        # antar-percobaan, biar nggak asal skip fragment dan hasil jadi kepotong.
-        "--fragment-retries", "infinite",
-        "--retry-sleep", "fragment:2",
-        "--retries", "10",
-        "--extractor-retries", "5",
-        # Downloader HLS paksa ffmpeg. Server fragment YouTube/M3U8 sering nge-403
-        # downloader native yt-dlp dari IP datacenter (VPS); ffmpeg dengan reconnect
-        # + retry jauh lebih toleran. Proto lain (http/dash) tetap native.
-        "--downloader", "ffmpeg:hls",
-        # reconnect otomatis kalau koneksi ke server drop di tengah fragment
-        "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
-        # YouTube: client yang dipake nentuin ketersediaan format.
-        # - tv: HLS penuh (1080p+), nggak butuh po-token.
-        # - ios: fallback pertama kalau tv lagi kena eksperimen SABR (#12482).
-        # - android: nggak kena SABR & nggak butuh po-token, tapi makan
-        #   cookies -> cuma itag 18 (360p) sebagai safety net.
-        # web_creator & mweb DIHAPUS karena sekarang wajib GVS PO Token yang
-        # nggak kita punya (akan 403 / blank).
-        # Catatan: EJS solver itu built-in di yt-dlp, jadi TIDAK pakai
-        # --remote-components ejs:github (yang tiap run download dari GitHub --
-        # di VPS suka gagal => "challenge solver distribution" hilang).
-        # consent=skip: anti "The page needs to be reloaded" dari redirect consent.
-        "--extractor-args", "youtube:player_client=tv,ios,android;consent=skip",
-        # mitigasi buat bug TikTok "Unexpected response from webpage request" yang lagi
-        # rame dilaporin ke yt-dlp (issue #17403 dkk, per Agustus 2026, belum ada fix resmi).
-        # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya terkait
-        # fingerprinting koneksi IPv6.
-        "--force-ipv4",
-        "-o", output_template,
-    ]
-
     # TikTok kadang nge-403 kalau kita kirim cookies.txt yang isinya bukan cookies
     # TikTok yang valid (dianggap "logged-in tapi mencurigakan"). Situs lain (YouTube dkk)
     # tetap butuh cookies buat konten age-restricted, jadi cuma di-skip khusus TikTok.
     is_tiktok = "tiktok.com" in domain
-    if os.path.isfile(COOKIE_FILE) and not is_tiktok:
-        cmd += ["--cookies", COOKIE_FILE]
+    is_youtube = "youtube.com" in domain or "youtu.be" in domain
 
-    cmd.append(url)
-
-    downloaded_file = None
-    dl_last_update = [0.0]  # throttle biar nggak spam edit_text -> kena FLOOD_WAIT
-    out_buf = collections.deque(maxlen=500)  # tail output buat diagnosa kegagalan
+    def build_cmd(extractor_args, format_sel):
+        ret = [
+            YTDLP_BIN,
+            "--js-runtimes", "node",
+            "-f", format_sel,
+            "--merge-output-format", "mp4",
+            "--no-playlist",
+            "--newline",
+            # HLS/m3u8 stream (TikTok, IG, dll) suka gagal ambil fragment terakhir
+            # kalau cuma retry beberapa kali doang -> paksa retry terus + kasih jeda
+            # antar-percobaan, biar nggak asal skip fragment dan hasil jadi kepotong.
+            "--fragment-retries", "infinite",
+            "--retry-sleep", "fragment:2",
+            "--retries", "10",
+            "--extractor-retries", "5",
+            # Downloader HLS paksa ffmpeg. Server fragment YouTube/M3U8 sering nge-403
+            # downloader native yt-dlp dari IP datacenter (VPS); ffmpeg dengan reconnect
+            # + retry jauh lebih toleran. Proto lain (http/dash) tetap native.
+            "--downloader", "ffmpeg:hls",
+            # reconnect otomatis kalau koneksi ke server drop di tengah fragment
+            "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
+            # YouTube: client yang dipake nentuin ketersediaan format.
+            # - tv: HLS penuh (1080p+), nggak butuh po-token.
+            # - ios: fallback pertama kalau tv lagi kena eksperimen SABR (#12482).
+            # - android: nggak kena SABR & nggak butuh po-token, tapi makan
+            #   cookies -> cuma itag 18 (360p) sebagai safety net.
+            # web_creator & mweb diLepas karena wajib GVS PO Token (403/blank).
+            # EJS solver built-in; consent=skip anti "page needs to be reloaded".
+            "--extractor-args", extractor_args,
+            # mitigasi bug TikTok "Unexpected response from webpage request" (#17403).
+            # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya
+            # terkait fingerprinting koneksi IPv6.
+            "--force-ipv4",
+            "-o", output_template,
+        ]
+        if os.path.isfile(COOKIE_FILE) and not is_tiktok:
+            ret += ["--cookies", COOKIE_FILE]
+        return ret + [url]
 
     # PM2 menyuntikkan env var IPC (NODE_CHANNEL_FD, dll) ke proses yang dia jalankan.
     # Kalau ini ikut diwariskan ke subprocess deno/node yang dipanggil yt-dlp untuk
@@ -198,68 +190,88 @@ async def download_via_url(url, work_dir, ctx):
     for var in ("NODE_CHANNEL_FD", "NODE_UNIQUE_ID", "NODE_CHANNEL_SERIALIZATION_MODE"):
         clean_env.pop(var, None)
 
-    # subprocess async supaya event loop tidak ke-block selama download
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        env=clean_env,
+    out_buf = collections.deque(maxlen=500)  # tail output buat diagnosa kegagalan
+
+    async def run_ytdlp(cmd):
+        dl_last_update = [0.0]  # throttle biar nggak spam edit_text -> kena FLOOD_WAIT
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=clean_env,
+        )
+        ctx["process"] = process
+        downloaded_file = None
+        try:
+            async for raw_line in process.stdout:
+                line = raw_line.decode(errors="ignore")
+                print(line, end="")
+                out_buf.append(line)
+
+                if "[download]" in line and "%" in line:
+                    match = DL_PROGRESS_RE.search(line)
+                    if match:
+                        percent = float(match.group(1))
+
+                        # throttle: yt-dlp bisa ngeluarin baris progress berkali-kali per detik
+                        # (apalagi koneksi kenceng) -- edit_text sesering itu bikin Telegram
+                        # ngasih FLOOD_WAIT dan panel jadi macet lama. Update paling cepat tiap 2.5 detik,
+                        # kecuali pas capai 100% (biar transisi ke fase berikutnya tetap kelihatan).
+                        now = time.monotonic()
+                        if now - dl_last_update[0] < 2.5 and percent < 100:
+                            continue
+                        dl_last_update[0] = now
+
+                        total = parse_size_str(match.group(2))
+                        speed_str = match.group(3)
+                        eta = match.group(4)
+                        speed = parse_size_str(speed_str.replace("/s", "")) if "/s" in speed_str else None
+                        processed = (total * percent / 100) if total else None
+                        await render_status(
+                            ctx, "Download", percent=percent,
+                            processed=processed, total=total,
+                            speed=speed, eta=eta,
+                        )
+
+                if "Destination:" in line:
+                    downloaded_file = line.split("Destination:")[-1].strip()
+
+                # yt-dlp download video & audio sebagai 2 stream terpisah (masing2 0-100%
+                # sendiri), lalu digabung pakai ffmpeg -- proses gabung ini nggak ngeluarin
+                # baris progress sama sekali, jadi kelihatan "macet" kalau nggak dikasih tau.
+                for keyword, label in (
+                    ("[Merger]", "Menggabungkan video + audio"),
+                    ("[FixupM3u8]", "Memperbaiki container video"),
+                    ("[ExtractAudio]", "Mengekstrak audio"),
+                    ("[VideoConvertor]", "Mengonversi video"),
+                    ("[Metadata]", "Menulis metadata"),
+                ):
+                    if keyword in line:
+                        await render_status(ctx, f"⚙️ {label}...")
+                        break
+
+            await process.wait()
+        finally:
+            ctx["process"] = None
+        return downloaded_file, process.returncode
+
+    # Jalur utama: client tv/ios/android (kualitas penuh dulu).
+    downloaded_file, rc = await run_ytdlp(
+        build_cmd("youtube:player_client=tv,ios,android;consent=skip",
+                  "bestvideo[height<=1080]+bestaudio/best")
     )
-    ctx["process"] = process
 
-    try:
-        async for raw_line in process.stdout:
-            line = raw_line.decode(errors="ignore")
-            print(line, end="")
-            out_buf.append(line)
+    # Segmen googlevideo (HLS tv/ios) sering 403 dari IP datacenter VPS.
+    # Client android (DASH progressive) jauh lebih toleran, kualitas ngedrop
+    # ke yang tersedia (biasanya 360p-720p) -- lebih baik daripada gagal total.
+    if rc != 0 and downloaded_file is None and is_youtube:
+        await render_status(ctx, "⚠️ HLS kena 403, coba android (kualitas lebih rendah)")
+        downloaded_file, rc = await run_ytdlp(
+            build_cmd("youtube:player_client=android;consent=skip",
+                      "best[height<=720]/bestvideo[height<=720]+bestaudio/best")
+        )
 
-            if "[download]" in line and "%" in line:
-                match = DL_PROGRESS_RE.search(line)
-                if match:
-                    percent = float(match.group(1))
-
-                    # throttle: yt-dlp bisa ngeluarin baris progress berkali-kali per detik
-                    # (apalagi koneksi kenceng) -- edit_text sesering itu bikin Telegram
-                    # ngasih FLOOD_WAIT dan panel jadi macet lama. Update paling cepat tiap 2.5 detik,
-                    # kecuali pas capai 100% (biar transisi ke fase berikutnya tetap kelihatan).
-                    now = time.monotonic()
-                    if now - dl_last_update[0] < 2.5 and percent < 100:
-                        continue
-                    dl_last_update[0] = now
-
-                    total = parse_size_str(match.group(2))
-                    speed_str = match.group(3)
-                    eta = match.group(4)
-                    speed = parse_size_str(speed_str.replace("/s", "")) if "/s" in speed_str else None
-                    processed = (total * percent / 100) if total else None
-                    await render_status(
-                        ctx, "Download", percent=percent,
-                        processed=processed, total=total,
-                        speed=speed, eta=eta,
-                    )
-
-            if "Destination:" in line:
-                downloaded_file = line.split("Destination:")[-1].strip()
-
-            # yt-dlp download video & audio sebagai 2 stream terpisah (masing2 0-100%
-            # sendiri), lalu digabung pakai ffmpeg -- proses gabung ini nggak ngeluarin
-            # baris progress sama sekali, jadi kelihatan "macet" kalau nggak dikasih tau.
-            for keyword, label in (
-                ("[Merger]", "Menggabungkan video + audio"),
-                ("[FixupM3u8]", "Memperbaiki container video"),
-                ("[ExtractAudio]", "Mengekstrak audio"),
-                ("[VideoConvertor]", "Mengonversi video"),
-                ("[Metadata]", "Menulis metadata"),
-            ):
-                if keyword in line:
-                    await render_status(ctx, f"⚙️ {label}...")
-                    break
-
-        await process.wait()
-    finally:
-        ctx["process"] = None
-
-    if process.returncode != 0:
+    if rc != 0:
         if downloaded_file is None:
             domain = urlparse(url).netloc.lower()
             await render_status(ctx, "⚠️ Bukan situs yt-dlp, mencoba direct download")
