@@ -179,6 +179,12 @@ async def download_via_url(url, work_dir, ctx):
         ]
         if os.path.isfile(COOKIE_FILE) and not is_tiktok:
             ret += ["--cookies", COOKIE_FILE]
+        # YouTube: media googlevideo nge-403 dari IP datacenter VPS. Lewat
+        # proxy residential (YT_PROXY, mis. socks5://127.0.0.1:10888 = tunnel
+        # dari Termux) biar 403 hilang. Hanya youtube biar situs lain nggak
+        # ikut di-route ke proxy.
+        if is_youtube and os.environ.get("YT_PROXY"):
+            ret += ["--proxy", os.environ["YT_PROXY"]]
         return ret + [url]
 
     # PM2 menyuntikkan env var IPC (NODE_CHANNEL_FD, dll) ke proses yang dia jalankan.
