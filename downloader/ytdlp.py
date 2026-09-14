@@ -157,12 +157,11 @@ async def download_via_url(url, work_dir, ctx):
             "--retry-sleep", "fragment:2",
             "--retries", "10",
             "--extractor-retries", "5",
-            # Downloader HLS paksa ffmpeg. Server fragment YouTube/M3U8 sering nge-403
-            # downloader native yt-dlp dari IP datacenter (VPS); ffmpeg dengan reconnect
-            # + retry jauh lebih toleran. Proto lain (http/dash) tetap native.
-            "--downloader", "ffmpeg:hls",
-            # reconnect otomatis kalau koneksi ke server drop di tengah fragment
-            "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -rw_timeout 15000000",
+            # HLS (tv/m3u8) pakai downloader NATIVE yt-dlp, BUKAN ffmpeg:
+            # ffmpeg nggak bisa pakai proxy SOCKS (--proxy socks5://),
+            # jadinya fetch fragment dari IP datacenter VPS -> 403. Native
+            # yt-dlp jalan lewat proxy (residential) biar 403 hilang.
+            "--hls-prefer-native",
             # YouTube: client yang dipake nentuin ketersediaan format.
             # - tv: HLS penuh (1080p+), nggak butuh po-token.
             # - ios: fallback pertama kalau tv lagi kena eksperimen SABR (#12482).
