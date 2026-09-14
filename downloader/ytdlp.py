@@ -166,7 +166,8 @@ async def download_via_url(url, work_dir, ctx):
         # Catatan: EJS solver itu built-in di yt-dlp, jadi TIDAK pakai
         # --remote-components ejs:github (yang tiap run download dari GitHub --
         # di VPS suka gagal => "challenge solver distribution" hilang).
-        "--extractor-args", "youtube:player_client=tv,ios,android",
+        # consent=skip: anti "The page needs to be reloaded" dari redirect consent.
+        "--extractor-args", "youtube:player_client=tv,ios,android;consent=skip",
         # mitigasi buat bug TikTok "Unexpected response from webpage request" yang lagi
         # rame dilaporin ke yt-dlp (issue #17403 dkk, per Agustus 2026, belum ada fix resmi).
         # --force-ipv4 kadang membantu karena beberapa report nunjukin masalahnya terkait
