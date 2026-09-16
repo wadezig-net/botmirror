@@ -79,7 +79,8 @@ async function req(url, { method = "GET", headers = {}, body } = {}) {
   };
   if (body) {
     h["Content-Type"] = "application/x-www-form-urlencoded";
-    h["Content-Length"] = String(body.length);
+    // JANGAN set Content-Length manual: undici + proxy (connect.proxyUrl)
+    // malah "fetch failed" kalau CL di-set tangan. fetch set otomatis.
   }
   const res = await fetch(url, {
     method,
