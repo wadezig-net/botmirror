@@ -1,6 +1,6 @@
 import os
 
-from config import DEVUPLOADS_SCRIPT, NODE_BIN
+from config import DEVUPLOADS_SCRIPT, NODE_BIN, next_proxy
 from status_ui import render_status
 from downloader.browser_link_capture import (
     run_node_link_finder,
@@ -30,9 +30,14 @@ async def devuploads_download(url, work_dir, ctx):
             "Cek ulang lokasi node dengan `which node` dan update NODE_BIN di config.py."
         )
 
+    # Gunakan proxy dari pool buat melewati geo-block datacenter VPS.
+    # Devuploads sering nolak IP datacenter; proxy mengarahkan lewat IP berbeda.
+    proxy = next_proxy()
+    extra_env = {"DOWNLOAD_PROXY": proxy} if proxy else None
     result = await run_node_link_finder(
         NODE_BIN, DEVUPLOADS_SCRIPT, url, work_dir, ctx,
         timeout=180,
+        extra_env=extra_env,
     )
     # Devuploads nge-throttle free-user. Dulu per-koneksi (~1 Mbps) dan paralel
     # aria2 bantu (kali lipat); sekarang yang sering terjadi throttle PER-IP
@@ -45,9 +50,12 @@ async def devuploads_download(url, work_dir, ctx):
             ctx, f"🌐 Mencari node download Devuploads (percobaan {attempt}/2)"
         )
         if attempt > 1:
+            proxy = next_proxy()
+            extra_env = {"DOWNLOAD_PROXY": proxy} if proxy else None
             result = await run_node_link_finder(
                 NODE_BIN, DEVUPLOADS_SCRIPT, url, work_dir, ctx,
                 timeout=180,
+                extra_env=extra_env,
             )
         filepath = await download_resolved_link_aria2(
             result, work_dir, ctx,

@@ -4,7 +4,7 @@ import asyncio
 import subprocess
 from urllib.parse import urlparse
 
-from config import TERABOX_SCRIPT, NODE_BIN, DOWNLOAD_DIR, proxy_env
+from config import TERABOX_SCRIPT, NODE_BIN, DOWNLOAD_DIR, proxy_env, next_proxy
 from status_ui import render_status
 
 # Domain Terabox yang dikenal
@@ -23,7 +23,13 @@ async def terabox_list_files(url, work_dir, ctx):
     if not os.path.isfile(NODE_BIN):
         raise Exception(f"Node binary tidak ditemukan di {NODE_BIN}.")
 
-    # Jalankan script JS
+    # Jalankan script JS lewat proxy pool buat bypass geo-block (Terabox sering
+    # nolak IP datacenter). Kalau ada DOWNLOAD_PROXY global (user set), biarkan.
+    env = {**os.environ, **proxy_env()}
+    if not env.get("DOWNLOAD_PROXY"):
+        proxy = next_proxy()
+        if proxy:
+            env["DOWNLOAD_PROXY"] = proxy
     proc = await asyncio.create_subprocess_exec(
         NODE_BIN,
         TERABOX_SCRIPT,
@@ -31,7 +37,7 @@ async def terabox_list_files(url, work_dir, ctx):
         work_dir,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, **proxy_env()},
+        env=env,
     )
 
     try:
