@@ -317,8 +317,11 @@ def _classify(base):
     except Exception:
         pass
     try:
-        if sock is None:
-            sock = _socket.create_connection((h, p), timeout=6.0)
+        # JANGAN pakai ulang socket dari percobaan SOCKS tadi: proxy HTTP
+        # yang nerima byte junk 0x05.. bakal bales 400/close pas dibenerin
+        # CONNECT. Selalu buka socket BERSIH baru buat jalur HTTP, biar
+        # proxy HTTP dengan kredensial (squid dll) nggak disangka "mati".
+        sock = _socket.create_connection((h, p), timeout=6.0)
         sock.settimeout(6.0)
         req = f"CONNECT {th[0]}:{th[1]} HTTP/1.1\r\nHost: {th[0]}:{th[1]}\r\n"
         if cred:
