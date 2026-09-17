@@ -224,11 +224,70 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
       return { kind: "guest_slots", candidate: null };
     }
 
-    // Tunggu countdown -> tombol "Start download" enabled, lalu klik.
-    const clicked = await waitForStartButton(mainPage, candidateRef, 110000);
+    // === STEP A: skip countdown — paksa klik #dlw tanpa nunggu enable. ===
+    // 1fichier menahan tombol "Start download" dgn countdown s/d 60 detik buat free
+    // user. Ternyata batas itu client-side: hapus atribut disabled lalu force-click
+    // langsung menghasilkan link "Start your download" (server nerima POST seketika).
+    const dlwF = mainPage.locator("#dlw");
+    if ((await dlwF.count().catch(() => 0)) > 0 && !candidateRef.value) {
+      const txt0 = (await dlwF.textContent().catch(() => "")).trim();
+      await dlwF.evaluate((el) => el.removeAttribute("disabled")).catch(() => {});
+      const okCli = await dlwF
+        .click({ timeout: 8000, force: true })
+        .then(() => true)
+        .catch(() => false);
+      if (okCli) {
+        log("paksa klik #dlw (skip countdown:", (txt0 || "?").slice(0, 32) + ")");
+        const linkSel =
+          'a:has-text("Start your download"), a:has-text("Click here to download"), a[download]:has-text("Download")';
+        const linkItem = mainPage.locator(linkSel).first();
+        const grabLink = async () => {
+          const href = await linkItem.getAttribute("href").catch(() => null);
+          if (href && !candidateRef.value) {
+            const fname = await linkItem.getAttribute("download").catch(() => null);
+            candidateRef.value = {
+              url: href,
+              filename: fname || "file",
+              pageUrl: mainPage.url(),
+            };
+            log("skip-countdown sukses, link:", href.slice(0, 110));
+            return true;
+          }
+          return false;
+        };
+        try {
+          await linkItem.waitFor({ state: "attached", timeout: 5000 });
+          await grabLink();
+        } catch (_) {
+          // Server kadang reset countdown -> #dlw langsung "Start download" (enabled).
+          await dlwF.waitFor({ state: "attached", timeout: 5000 }).catch(() => {});
+          try {
+            await dlwF.waitFor({ state: "visible", timeout: 3000 });
+            if (!(await dlwF.isDisabled().catch(() => true)) &&
+                /start download|download now|télécharger/i.test(await dlwF.textContent().catch(() => ""))) {
+              await dlwF.click({ timeout: 8000, force: true }).catch(() => {});
+            }
+          } catch (_) {}
+          try {
+            await linkItem.waitFor({ state: "attached", timeout: 9000 });
+            await grabLink();
+          } catch (_) {}
+        }
+        if (!candidateRef.value) {
+          const bodyNow = await mainPage.textContent("body").catch(() => "");
+          if (WAIT_LIMIT_RE.test(bodyNow || "")) {
+            lastWaitBody = bodyNow || "";
+            return { kind: "rate_limit", candidate: null };
+          }
+        }
+      }
+    }
+
+    // === STEP B: fallback countdown normal (kalau STEP A nggak menghasilkan link). ===
+    const clicked = candidateRef.value ? null : await waitForStartButton(mainPage, candidateRef, 110000);
     if (clicked) {
       if (clicked === "dlw") {
-        await mainPage.locator("#dlw").click({ timeout: 15000 }).catch((e) => log("klik #dlw gagal:", e.message));
+        await mainPage.locator("#dlw").click({ timeout: 15000, force: true }).catch((e) => log("klik #dlw gagal:", e.message));
       } else {
         await mainPage
           .locator('button:not([disabled]):has-text("Start download"), a:not([disabled]):has-text("Start download")')
