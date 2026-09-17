@@ -82,3 +82,5 @@ downloads/
 __pycache__/
 *.pyc
 proxies.txt
+proxies_state.json
+fichier_proxies_*.txt
