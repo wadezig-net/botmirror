@@ -40,9 +40,11 @@ async def donate_cmd(client, message):
 @app.on_callback_query(filters.regex("^donate$"))
 async def donate_callback(client, callback_query):
     if qris_available():
-        await callback_query.message.reply_photo(QRIS_FILE, caption=QRIS_EXISTS_TEXT)
+        await callback_query.message.reply_photo(
+            QRIS_FILE, caption=QRIS_EXISTS_TEXT, reply_markup=menu_back_keyboard()
+        )
     else:
-        await callback_query.message.reply(DONATE_TEXT)
+        await callback_query.message.reply(DONATE_TEXT, reply_markup=menu_back_keyboard())
     await callback_query.answer()
 
 
@@ -110,6 +112,18 @@ def main_menu_keyboard():
     ])
 
 
+def menu_back_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("◀️ Kembali", callback_data="menu_back")],
+    ])
+
+
+@app.on_callback_query(filters.regex("^menu_back$"))
+async def menu_back_callback(client, callback_query):
+    await callback_query.message.edit_text(INVISIBLE, reply_markup=main_menu_keyboard())
+    await callback_query.answer()
+
+
 INVISIBLE = "\u2060"  # word joiner, tampil sebagai teks kosong (~hanya tombol)
 
 
@@ -128,7 +142,7 @@ async def help_cmd(client, message):
 
 @app.on_callback_query(filters.regex("^help$"))
 async def help_callback(client, callback_query):
-    await callback_query.message.reply(HELP_TEXT)
+    await callback_query.message.reply(HELP_TEXT, reply_markup=menu_back_keyboard())
     await callback_query.answer()
 
 
@@ -149,5 +163,5 @@ async def saldo_info_callback(client, callback_query):
         "**Cara topup:** scan QRIS/transfer ke owner (lihat /donate), "
         "kirim bukti + user ID ke @waaadezig."
     )
-    await callback_query.message.reply(text)
+    await callback_query.message.reply(text, reply_markup=menu_back_keyboard())
     await callback_query.answer()

@@ -9,6 +9,12 @@ from urllib.parse import urlparse
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from handlers.keyboards import (
+    build_rename_keyboard,
+    build_upload_keyboard,
+    build_resolution_keyboard,
+)
+
 from utils import (
     is_owner, is_premium, can_start_task, probe_url_size, owner_prompt,
     FREE_MAX_FILE_BYTES, FREE_MAX_FILE_GB,
@@ -45,13 +51,6 @@ def is_youtube_link(url):
         return False
     domain = urlparse(url).netloc.lower()
     return "youtu.be" in domain or "youtube.com" in domain
-
-
-def build_rename_keyboard(request_id):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Rename File", callback_data=f"rename_yes:{request_id}")],
-        [InlineKeyboardButton("⏩ Pakai Nama Asli", callback_data=f"rename_no:{request_id}")],
-    ])
 
 
 def _media_size(replied):
@@ -207,26 +206,12 @@ async def mirror(client, message):
     work_dir = os.path.join(DOWNLOAD_DIR, request_id)
     os.makedirs(work_dir, exist_ok=True)
 
-    rename_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ Rename File", callback_data=f"rename_yes:{request_id}")],
-        [InlineKeyboardButton("⏩ Pakai Nama Asli", callback_data=f"rename_no:{request_id}")],
-    ])
-
-    upload_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("☁️ GoFile", callback_data=f"upload_gofile:{request_id}")],
-        [InlineKeyboardButton("📁 Google Drive", callback_data=f"upload_gdrive:{request_id}")],
-        [InlineKeyboardButton("📨 Telegram Channel", callback_data=f"upload_channel:{request_id}")],
-        [InlineKeyboardButton("📦 Zip & Upload", callback_data=f"upload_zip:{request_id}")],
-    ])
+    rename_keyboard = build_rename_keyboard(request_id)
+    upload_keyboard = build_upload_keyboard(request_id)
 
     if is_youtube_link(url):
         # YouTube: tanya resolusi dulu sebelum lanjut rename/upload.
-        yt_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("360p", callback_data=f"yt_res:{request_id}:360"),
-             InlineKeyboardButton("720p", callback_data=f"yt_res:{request_id}:720")],
-            [InlineKeyboardButton("1080p", callback_data=f"yt_res:{request_id}:1080"),
-             InlineKeyboardButton("📺 Max", callback_data=f"yt_res:{request_id}:max")],
-        ])
+        yt_keyboard = build_resolution_keyboard(request_id)
         status_msg = await message.reply(
             "🎬 **Pilih resolusi download:**\n\n"
             "YouTube sekarang streaming dengan eksperimen SABR — tanpa pilihan "
@@ -304,6 +289,7 @@ async def _handle_terabox_preview(message, url):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Lanjut Mirror", callback_data=f"terabox_go:{request_id}")],
             [InlineKeyboardButton("❌ Batal", callback_data=f"terabox_cancel:{request_id}")],
+            [InlineKeyboardButton("◀️ Kembali", callback_data=f"mirror_cancel:{request_id}")],
         ])
 
         # Kirim summary + dokumen daftar file
@@ -445,12 +431,7 @@ async def terabox_callback(client, callback_query):
     except Exception:
         pass
 
-    upload_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("☁️ GoFile", callback_data=f"upload_gofile:{new_request_id}")],
-        [InlineKeyboardButton("📁 Google Drive", callback_data=f"upload_gdrive:{new_request_id}")],
-        [InlineKeyboardButton("📨 Telegram Channel", callback_data=f"upload_channel:{new_request_id}")],
-        [InlineKeyboardButton("📦 Zip & Upload", callback_data=f"upload_zip:{new_request_id}")],
-    ])
+    upload_keyboard = build_upload_keyboard(new_request_id)
 
     await callback_query.message.reply(
         f"✅ Download selesai: `{os.path.basename(downloaded)}`\\n\\nPilih tujuan upload:",
@@ -513,3 +494,117 @@ async def yt_resolution_callback(client, callback_query):
         )
     except Exception:
         pass
+
+
+# ---- Callback: tombol Kembali di alur mirror ----
+@app.on_callback_query(filters.regex(r"^mirror_cancel:"))
+async def mirror_cancel_callback(client, callback_query):
+    """
+    Tombol "Kembali" di menu-mul: hapus seluruh alur mirror (status panel,
+    workspace, task) karena belum ada langkah sebelumnya yang bisa dituju.
+    """
+    request_id = callback_query.data.split(":", 1)[1]
+    task = pending_upload.get(request_id)
+    if not task:
+        return await callback_query.answer("Session sudah habis.", show_alert=True)
+
+    ctx = task.get("ctx") or task_registry.get(request_id)
+    if ctx:
+        process = ctx.get("process")
+        if process:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        running = ctx.get("task")
+        if running:
+            try:
+                running.cancel()
+            except Exception:
+                pass
+        try:
+            await ctx["status"].delete()
+        except Exception:
+            pass
+        task_registry.pop(request_id, None)
+
+    pending_upload.pop(request_id, None)
+    shutil.rmtree(task.get("work_dir"), ignore_errors=True)
+
+    try:
+        await callback_query.message.delete()
+    except Exception:
+        pass
+    await callback_query.answer("Mirror dibatalkan.")
+
+
+@app.on_callback_query(filters.regex(r"^rename_back:"))
+async def rename_back_callback(client, callback_query):
+    """
+    "Kembali" di menu rename:
+    - YouTube: balik ke pilihan resolusi.
+    - selain itu: batalkan alur mirror (tidak ada step sebelumnya).
+    """
+    request_id = callback_query.data.split(":", 1)[1]
+    task = pending_upload.get(request_id)
+    if not task:
+        return await callback_query.answer("Session sudah habis.", show_alert=True)
+
+    if task.get("yt_format"):
+        # balik ke pilihan resolusi YouTube
+        await callback_query.message.edit_text(
+            "🎬 **Pilih resolusi download:**\n\n"
+            "YouTube sekarang streaming dengan eksperimen SABR — tanpa pilihan "
+            "resolusi, bot biasanya cuma bisa dapat 360p. Pilih sesuai kebutuhan:",
+            reply_markup=build_resolution_keyboard(request_id),
+        )
+        return await callback_query.answer()
+
+    # non-YouTube: sama seperti batal/cancel flow
+    ctx = task.get("ctx") or task_registry.get(request_id)
+    if ctx:
+        process = ctx.get("process")
+        if process:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        running = ctx.get("task")
+        if running:
+            try:
+                running.cancel()
+            except Exception:
+                pass
+        try:
+            await ctx["status"].delete()
+        except Exception:
+            pass
+        task_registry.pop(request_id, None)
+    pending_upload.pop(request_id, None)
+    shutil.rmtree(task.get("work_dir"), ignore_errors=True)
+    try:
+        await callback_query.message.delete()
+    except Exception:
+        pass
+    await callback_query.answer("Mirror dibatalkan.")
+
+
+@app.on_callback_query(filters.regex(r"^upload_back:"))
+async def upload_back_callback(client, callback_query):
+    """
+    "Kembali" di menu tujuan-upload: balik ke prompt rename (alias nama file).
+    """
+    request_id = callback_query.data.split(":", 1)[1]
+    task = pending_upload.get(request_id)
+    if not task:
+        return await callback_query.answer("Session sudah habis.", show_alert=True)
+
+    task.pop("zip", None)  # batalkan pilihan zip kalau sempat terpilih
+    try:
+        await callback_query.message.edit_text(
+            "📁 Pilih nama file:",
+            reply_markup=build_rename_keyboard(request_id),
+        )
+    except Exception:
+        pass
+    await callback_query.answer()

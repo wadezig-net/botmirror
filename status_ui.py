@@ -77,7 +77,8 @@ async def render_status(ctx, status_label, percent=None, processed=None, total=N
 
 def status_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh", callback_data="status_refresh")]
+        [InlineKeyboardButton("🔄 Refresh", callback_data="status_refresh")],
+        [InlineKeyboardButton("◀️ Kembali", callback_data="menu_back")],
     ])
 
 
