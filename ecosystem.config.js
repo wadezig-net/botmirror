@@ -17,6 +17,22 @@ module.exports = {
       },
     },
     {
+      name: 'petani-proxy',
+      cwd: '/root/petani-proxy',
+      script: '/root/petani-proxy/main.py',
+      interpreter: '/root/petani-proxy/.venv/bin/python',
+      args: '--daemon-gateway',
+      autorestart: true,
+      max_restarts: 20,
+      restart_delay: 10000,
+      min_uptime: 30000,
+      time: true,
+      kill_timeout: 10000,
+      env: {
+        PYTHONUNBUFFERED: '1',
+      },
+    },
+    {
       name: 'jdownloader',
       cwd: '/opt/jdownloader',
       script: '/usr/bin/java',

@@ -1,10 +1,37 @@
 import os
+import tempfile
 
-from config import FICHIER_SCRIPT, NODE_BIN, FICHIER_LOGIN_COOKIES, FICHIER_PROXIES_FILE
+from config import FICHIER_SCRIPT, NODE_BIN, FICHIER_LOGIN_COOKIES, FICHIER_PROXIES_FILE, petani_gateway_url
 from status_ui import render_status
 from downloader.browser_link_capture import run_node_link_finder, download_resolved_link
 
 FICHIER_DOMAINS = ("1fichier.com",)
+
+
+def _fichier_proxies_file():
+    """Daftar proxy buat rotasi 1fichier: gateway PetaniProxy dulu, lalu list asli."""
+    gw = petani_gateway_url()
+    base = FICHIER_PROXIES_FILE
+    if not gw:
+        return base
+    lines = []
+    if base and os.path.isfile(base):
+        with open(base, encoding="utf-8", errors="ignore") as _f:
+            lines = [
+                l.strip() for l in _f
+                if l.strip() and not l.lstrip().startswith("#")
+            ]
+    if gw not in lines:
+        lines.insert(0, gw)
+    _tmp = tempfile.NamedTemporaryFile(
+        mode="w", prefix="fichier_proxies_", suffix=".txt",
+        dir=os.path.dirname(base) if base and os.path.isdir(os.path.dirname(base)) else None,
+        delete=False,
+        encoding="utf-8",
+    )
+    _tmp.write("\n".join(lines) + "\n")
+    _tmp.close()
+    return _tmp.name
 
 
 async def fichier_headless_download(url, work_dir, ctx):
@@ -32,7 +59,7 @@ async def fichier_headless_download(url, work_dir, ctx):
     if FICHIER_LOGIN_COOKIES and os.path.isfile(FICHIER_LOGIN_COOKIES):
         extra_env["FICHIER_LOGIN_COOKIES"] = FICHIER_LOGIN_COOKIES
     if FICHIER_PROXIES_FILE and os.path.isfile(FICHIER_PROXIES_FILE):
-        extra_env["FICHIER_PROXIES_FILE"] = FICHIER_PROXIES_FILE
+        extra_env["FICHIER_PROXIES_FILE"] = _fichier_proxies_file()
 
     result = await run_node_link_finder(
         NODE_BIN, FICHIER_SCRIPT, url, work_dir, ctx,
@@ -60,7 +87,7 @@ async def get_fichier_direct_link(url, work_dir, ctx):
     if FICHIER_LOGIN_COOKIES and os.path.isfile(FICHIER_LOGIN_COOKIES):
         extra_env["FICHIER_LOGIN_COOKIES"] = FICHIER_LOGIN_COOKIES
     if FICHIER_PROXIES_FILE and os.path.isfile(FICHIER_PROXIES_FILE):
-        extra_env["FICHIER_PROXIES_FILE"] = FICHIER_PROXIES_FILE
+        extra_env["FICHIER_PROXIES_FILE"] = _fichier_proxies_file()
 
     return await run_node_link_finder(
         NODE_BIN, FICHIER_SCRIPT, url, work_dir, ctx,

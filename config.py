@@ -202,6 +202,35 @@ PROXY_REFRESH_INTERVAL = PROXY_STATE_TTL - 30
 PROXY_PROBE_TARGET = ("devuploads.com", 443)
 PROXY_WORKERS = 64
 
+PETANI_GATEWAY = os.getenv("PETANI_GATEWAY", "http://127.0.0.1:8888")
+PETANI_PROBE_INTERVAL = 30.0
+
+_petani_cache = {"ts": 0.0, "alive": False}
+
+
+def _petani_alive():
+    """Gateway PetaniProxy hidup & pool-nya nggak kosong? (cache 30 dtk)."""
+    now = _time.time()
+    with _pool_lock:
+        if now - _petani_cache["ts"] < PETANI_PROBE_INTERVAL:
+            return _petani_cache["alive"]
+    ok = False
+    try:
+        import urllib.request as _ur
+        with _ur.urlopen(PETANI_GATEWAY.rstrip("/") + "/api/status", timeout=1.5) as _r:
+            _d = _json.loads(_r.read(4096))
+        ok = bool(_d.get("stats", {}).get("pool_size", 0) > 0)
+    except Exception:
+        ok = False
+    with _pool_lock:
+        _petani_cache.update(ts=now, alive=ok)
+    return ok
+
+
+def petani_gateway_url():
+    """URL gateway PetaniProxy kalau hidup, '' kalau mati/kosong."""
+    return PETANI_GATEWAY if _petani_alive() else ""
+
 _pool_lock = _threading.Lock()
 _pool = {}                     # "host:port" -> {"url": "...", "ts": epoch}
 
@@ -413,10 +442,13 @@ def next_proxy(force_socks=False):
     """Proxy URL acak dari pool proxy yang TERBUKTI hidup; '' kalau kosong.
 
     DOWNLOAD_PROXY (env) kalau diset selalu menang (proxy eksplisit user).
+    Kalau gateway PetaniProxy hidup, dipakai (rotasi IP tiap request);
     force_socks=True buat jalur yang butuh socks (mis. bypass tertentu)."""
+    if DOWNLOAD_PROXY:
+        return DOWNLOAD_PROXY
+    if not force_socks and _petani_alive():
+        return PETANI_GATEWAY
     with _pool_lock:
-        if DOWNLOAD_PROXY:
-            return DOWNLOAD_PROXY
         pool = _pool
         if not pool:
             return ""

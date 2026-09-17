@@ -73,6 +73,7 @@ fichier_proxies.txt
 mirrorbot.session
 mirrorbot.session-journal
 cookies.txt
+cookies.x
 database/users.json
 upload_history.json
 venv/
