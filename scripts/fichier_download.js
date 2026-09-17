@@ -1,12 +1,17 @@
 // Usage: node fichier_download.js <url> <work_dir>
 // Output: JSON satu baris -> {"ok": true, "direct_url": "...", "cookie_file": "...", "referer": "..."}
-//                          atau {"ok": false, "error": "..."}
+//                          atau {"ok": false, "error": "...", "code": "guest_slots|rate_limit|no_link|..."}
 //
-// 1fichier (free user) sering kena rate-limit "you must wait N minutes" per-IP.
-// Strategi: kalau ada FICHIER_LOGIN_COOKIES (akun Premium), dipakai dulu (Premium
-// nggak kena limit ini sama sekali). Kalau nggak ada, coba tanpa proxy dulu; kalau
-// halaman nunjukkin pesan wait-limit, ganti IP pakai proxy dari FICHIER_PROXIES_FILE
-// (satu per baris) dan ulangi, sampai berhasil atau daftar proxy habis.
+// 1fichier (free user) punya countdown "Free download in N" -> tombol #dlw di-disable
+// sampai hitungan habis (baru jadi "Start download" & bisa diklik). Klien headless
+// nggak boleh ngeklik tombol sebelum itu (Playwright nolak disabled) -> makanya di sini
+// kita TUNGGU sampai #dlw benar-benar enabled, baru klik, lalu lihat hasilnya:
+//   - file langsung (response attachment / event download)  -> ok
+//   - "guest slots penuh / Sign in and download now"        -> code guest_slots (coba proxy lain)
+//   - "you must wait N minutes"                             -> code rate_limit (rotasi proxy)
+//
+// Bonus: kalau ada FICHIER_LOGIN_COOKIES (akun free/premium), dipakai biar selamat
+// dari "guest slots penuh" & rate-limit.
 
 const path = require("path");
 const fs = require("fs");
@@ -15,6 +20,8 @@ const { chromium } = require("playwright");
 function log(...args) {
   console.error("[debug]", ...args);
 }
+
+let lastWaitBody = "";
 
 const BINARY_EXT_RE = /\.(zip|rar|7z|apk|mp4|mkv|avi|mov|exe|iso|pdf|docx?|xlsx?|pptx?|bin|dmg|tar|gz)(\?|$)/i;
 
@@ -30,6 +37,8 @@ const AD_TRACKER_DOMAINS = [
 const IGNORED_RESOURCE_TYPES = new Set(["script", "stylesheet", "image", "font", "media", "eventsource", "websocket", "manifest"]);
 
 const WAIT_LIMIT_RE = /you must wait|vous devez attendre/i;
+const WAIT_MIN_RE = /(?:you|vous) must wait (?:between downloads\.?\s*)?(\d+)\s*(?:minute|min)/i;
+const GUEST_SLOT_RE = /guest slots?|sign in and download now|free guest|currently in use|reserved to our (free |)members/i;
 
 function looksLikeFileResponse(response) {
   const url = response.url();
@@ -73,34 +82,50 @@ function loadProxyList() {
     .filter((l) => l && !l.startsWith("#"));
 }
 
-async function clickDownloadLoop(page, candidateRef, maxAttempts, waitPerAttemptSec) {
-  for (let attempt = 1; attempt <= maxAttempts && !candidateRef.value; attempt++) {
-    const button = page
-      .locator(
-        'a:has-text("Click here to download"), button:has-text("Click here to download"), ' +
-        'a:has-text("Télécharger"), button:has-text("Télécharger"), ' +
-        'a:has-text("Start download"), button:has-text("Start download"), ' +
-        'a:has-text("Download"), button:has-text("Download")'
-      )
-      .first();
-    const isVisible = await button.isVisible({ timeout: 15000 }).catch(() => false);
-    log(`percobaan klik ke-${attempt}, tombol visible?`, isVisible, "| url saat ini:", page.url());
+async function waitForStartButton(page, candidateRef, maxWaitMs) {
+  // 1) Prioritas: tombol countdown 1fichier #dlw. Tunggu sampai enable & text = "Start download".
+  // 2) Fallback: tombol/link apa pun yang enabled dan bertext "Start download".
+  // Loop ini juga punya escape: kalau file/direct link sudah ketangkap di network -> berhenti.
+  const dlw = page.locator("#dlw");
+  const alt = page.locator(
+    'button:not([disabled]):has-text("Start download"), ' +
+    'a:not([disabled]):has-text("Start download")'
+  ).first();
+  const deadline = Date.now() + maxWaitMs;
 
-    if (isVisible) {
-      await button.click({ timeout: 10000 }).catch((e) => log("klik gagal:", e.message));
+  while (Date.now() < deadline && !candidateRef.value) {
+    const dlwCount = await dlw.count().catch(() => 0);
+    if (dlwCount > 0) {
+      const disabled = await dlw.isDisabled().catch(() => true);
+      const txt = (await dlw.textContent().catch(() => "")).trim();
+      if (!disabled && /start download|download now|télécharger/i.test(txt)) {
+        log("tombol #dlw siap diklik:", txt.slice(0, 60));
+        return "dlw";
+      }
+      if (disabled) {
+        log("masih countdown:", (txt || "").slice(0, 40));
+      }
     } else {
-      const count = await button.count().catch(() => 0);
-      if (count > 0) {
-        await button.click({ timeout: 10000, force: true }).catch((e) => log("force klik gagal:", e.message));
-      } else {
-        log(`percobaan ke-${attempt}: tombol nggak ketemu, tunggu lalu coba lagi`);
+      const altCount = await alt.count().catch(() => 0);
+      if (altCount > 0) {
+        const enabled = await alt.isEnabled().catch(() => false);
+        if (enabled) {
+          log("tombol alternatif 'Start download' siap");
+          return "alt";
+        }
       }
     }
-
-    for (let i = 0; i < waitPerAttemptSec && !candidateRef.value; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-    }
+    await new Promise((r) => setTimeout(r, 1500));
   }
+  return null;
+}
+
+async function classifyResult(page, candidateRef) {
+  if (candidateRef.value) return "ok";
+  const body = await page.textContent("body").catch(() => "");
+  if (WAIT_LIMIT_RE.test(body || "")) return "rate_limit";
+  if (GUEST_SLOT_RE.test(body || "")) return "guest_slots";
+  return "no_link";
 }
 
 async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
@@ -129,9 +154,9 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
       try {
         const loginCookies = JSON.parse(fs.readFileSync(loginCookiesPath, "utf-8"));
         await context.addCookies(loginCookies);
-        log("cookies premium 1fichier berhasil dimuat");
+        log("cookies login 1fichier berhasil dimuat");
       } catch (e) {
-        log("gagal load cookies premium:", e.message);
+        log("gagal load cookies login:", e.message);
       }
     }
 
@@ -141,7 +166,12 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
       page.on("response", (response) => {
         try {
           const resourceType = response.request().resourceType();
-          if (!IGNORED_RESOURCE_TYPES.has(resourceType) && resourceType !== "stylesheet") {
+          if (looksLikeFileResponse(response)) {
+            log(`[${label}] kandidat file ketemu:`, response.url().slice(0, 150));
+            if (!candidateRef.value) {
+              candidateRef.value = { url: response.url(), filename: filenameFromResponse(response), pageUrl: page.url() };
+            }
+          } else if (!IGNORED_RESOURCE_TYPES.has(resourceType) && resourceType !== "stylesheet") {
             const h = response.headers();
             log(
               `[${label}] response:`, resourceType,
@@ -149,12 +179,6 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
               "| cl:", h["content-length"] || "?",
               "|", response.url().slice(0, 100)
             );
-          }
-          if (looksLikeFileResponse(response)) {
-            log(`[${label}] kandidat file ketemu:`, response.url().slice(0, 150));
-            if (!candidateRef.value) {
-              candidateRef.value = { url: response.url(), filename: filenameFromResponse(response), pageUrl: page.url() };
-            }
           }
         } catch (_) {}
       });
@@ -178,7 +202,7 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
       const p = (async () => {
         await popup.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
         // popup 1fichier kadang punya tombol download SENDIRI yang butuh diklik lagi
-        await clickDownloadLoop(popup, candidateRef, 2, 10);
+        await waitForStartButton(popup, candidateRef, 40000);
         if (!candidateRef.value) {
           await popup.close().catch(() => {});
         }
@@ -188,21 +212,58 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
 
     log("navigasi ke:", url, proxyServer ? `(proxy: ${proxyServer})` : "(tanpa proxy)");
     await mainPage.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => log("goto error:", e.message));
-    await mainPage.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => log("networkidle timeout, lanjut aja"));
 
     const bodyText = await mainPage.textContent("body").catch(() => "");
     if (WAIT_LIMIT_RE.test(bodyText || "")) {
-      log("kena rate-limit wait-time di halaman ini");
-      return { rateLimited: true, candidate: null };
+      lastWaitBody = bodyText || "";
+      log("kena rate-limit wait-time di halaman awal");
+      return { kind: "rate_limit", candidate: null };
+    }
+    if (GUEST_SLOT_RE.test(bodyText || "")) {
+      log("guest slot penuh sejak halaman awal");
+      return { kind: "guest_slots", candidate: null };
     }
 
-    for (let i = 0; i < 10 && !candidateRef.value; i++) {
+    // Tunggu countdown -> tombol "Start download" enabled, lalu klik.
+    const clicked = await waitForStartButton(mainPage, candidateRef, 110000);
+    if (clicked) {
+      if (clicked === "dlw") {
+        await mainPage.locator("#dlw").click({ timeout: 15000 }).catch((e) => log("klik #dlw gagal:", e.message));
+      } else {
+        await mainPage
+          .locator('button:not([disabled]):has-text("Start download"), a:not([disabled]):has-text("Start download")')
+          .first()
+          .click({ timeout: 15000 })
+          .catch((e) => log("klik alternatif gagal:", e.message));
+      }
+    }
+
+    // === STEP: DOM scan — cari link "Start your download" (tampil setelah klik #dlw). ===
+    if (!candidateRef.value) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const dlLink = mainPage
+        .locator('a:has-text("Start your download"), a:has-text("Click here to download"), a[download]:has-text("Download")')
+        .first();
+      const dlCount = await dlLink.count().catch(() => 0);
+      if (dlCount > 0) {
+        const href = await dlLink.getAttribute("href").catch(() => null);
+        const dlFilename = await dlLink.getAttribute("download").catch(() => null);
+        const pageTitle = (await mainPage.textContent("h1").catch(() => "")) || "";
+        log("DOM link 'download' ditemukan:", href ? href.slice(0, 120) : "(null)", "| download attr:", dlFilename);
+        if (href && !candidateRef.value) {
+          candidateRef.value = {
+            url: href,
+            filename: dlFilename || pageTitle.trim() || "file",
+            pageUrl: mainPage.url(),
+          };
+        }
+      }
+    }
+
+    // Beri waktu buat response/file ataupun popup muncul.
+    for (let i = 0; i < 12 && !candidateRef.value; i++) {
       await new Promise((r) => setTimeout(r, 1000));
     }
-
-    await clickDownloadLoop(mainPage, candidateRef, 4, 20);
-
-    // kasih waktu popup yang lagi diproses buat selesai sebelum kita nyerah
     if (!candidateRef.value && popupPromises.length > 0) {
       await Promise.race([
         Promise.all(popupPromises),
@@ -210,11 +271,12 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
       ]);
     }
 
-    if (!candidateRef.value) {
-      const shotPath = path.join(workDir, `debug_fichier_no_link_${Date.now()}.png`);
+    const kind = await classifyResult(mainPage, candidateRef);
+    if (kind !== "ok") {
+      const shotPath = path.join(workDir, `debug_fichier_${kind}_${Date.now()}.png`);
       await mainPage.screenshot({ path: shotPath, fullPage: true }).catch(() => {});
-      log("total popup terbuka:", popupCount, "-- screenshot:", shotPath);
-      return { rateLimited: false, candidate: null };
+      log("hasil:", kind, "| popup:", popupCount, "| screenshot:", shotPath);
+      return { kind, candidate: null };
     }
 
     const cookies = await context.cookies();
@@ -222,7 +284,7 @@ async function tryOnce(url, workDir, proxyServer, loginCookiesPath) {
     fs.writeFileSync(cookieFile, JSON.stringify(cookies));
 
     return {
-      rateLimited: false,
+      kind: "ok",
       candidate: {
         url: candidateRef.value.url,
         filename: candidateRef.value.filename,
@@ -250,43 +312,54 @@ async function main() {
   log(`total kandidat percobaan: ${proxies.length} (1 direct + ${proxies.length - 1} proxy)`);
 
   let lastError = null;
+  let sawGuest = false;
+  let sawRateLimit = false;
 
-  try {
-    for (const proxyServer of proxies) {
-      try {
-        const result = await tryOnce(url, workDir, proxyServer, loginCookiesPath);
-        if (result.candidate) {
-          console.log(JSON.stringify({
-            ok: true,
-            direct_url: result.candidate.url,
-            filename: result.candidate.filename,
-            referer: result.candidate.referer,
-            cookie_file: result.candidate.cookieFile,
-          }));
-          return;
-        }
-        if (result.rateLimited) {
-          log(proxyServer ? `proxy ${proxyServer} juga kena limit, lanjut ke berikutnya` : "kena limit tanpa proxy, coba proxy berikutnya");
-          continue;
-        }
-        // nggak rate-limited tapi juga nggak ketemu kandidat -> kemungkinan situs berubah/error lain,
-        // tetap lanjut coba proxy berikutnya siapa tau IP ini yang bermasalah
-        lastError = new Error("Tidak ketemu link file di traffic network");
-      } catch (err) {
-        lastError = err;
-        log("percobaan gagal total:", err.message || String(err));
+  for (const proxyServer of proxies) {
+    try {
+      const result = await tryOnce(url, workDir, proxyServer, loginCookiesPath);
+      if (result.candidate) {
+        console.log(JSON.stringify({
+          ok: true,
+          direct_url: result.candidate.url,
+          filename: result.candidate.filename,
+          referer: result.candidate.referer,
+          cookie_file: result.candidate.cookieFile,
+        }));
+        return;
       }
+      if (result.kind === "guest_slots") {
+        sawGuest = true;
+        log(proxyServer ? `proxy ${proxyServer} juga guest-slot penuh, lanjut berikutnya` : "guest-slot penuh tanpa proxy, coba proxy berikutnya");
+        continue;
+      }
+      if (result.kind === "rate_limit") {
+        sawRateLimit = true;
+        log(proxyServer ? `proxy ${proxyServer} kena rate-limit, lanjut berikutnya` : "kena rate-limit tanpa proxy, coba proxy berikutnya");
+        continue;
+      }
+      lastError = new Error("Tidak ketemu link file di traffic network");
+    } catch (err) {
+      lastError = err;
+      log("percobaan gagal total:", err.message || String(err));
     }
-
-    console.log(JSON.stringify({
-      ok: false,
-      error: `Semua percobaan gagal (${proxies.length} kandidat dicoba). ${lastError ? lastError.message : ""}`.trim(),
-    }));
-    process.exitCode = 1;
-  } catch (err) {
-    console.log(JSON.stringify({ ok: false, error: String(err && err.message ? err.message : err) }));
-    process.exitCode = 1;
   }
+
+  let error;
+  if (sawGuest) {
+    error =
+      "1fichier lagi penuh slot guest (butuh login akun free). " +
+      (loginCookiesPath ? "" : "Set cookies login 1fichier di FICHIER_LOGIN_COOKIES biar lolos.");
+  } else if (sawRateLimit) {
+    const waitMatch = (lastWaitBody || "").match(WAIT_MIN_RE);
+    error = `1fichier kena rate-limit (akun free harus nunggu antar download${
+      waitMatch ? " " + waitMatch[1] + " menit" : ""
+    }). Coba lagi nanti / pakai akun premium.`;
+  } else {
+    error = `Semua percobaan gagal (${proxies.length} kandidat dicoba). ${lastError ? lastError.message : ""}`.trim();
+  }
+  console.log(JSON.stringify({ ok: false, error, code: sawGuest ? "guest_slots" : (sawRateLimit ? "rate_limit" : "no_link") }));
+  process.exitCode = 1;
 }
 
 main();
