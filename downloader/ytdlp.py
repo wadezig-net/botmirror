@@ -264,19 +264,21 @@ async def download_via_url(url, work_dir, ctx):
     # -- SABR experiment (#12482) bikin format tv/ios/android jadi tanpa URL
     # (cuma sisa itag 18 / 360p). Default order (campuran tv,web,web_safari,
     # dll) yang malah kasih format 1080p penuh di session/network ini.
+    # Resolusi bisa dipilih user via callback yt_res (ctx["yt_format"]); kalau
+    # nggak ada, default 1080p.
+    yt_format = ctx.get("yt_format") or "bestvideo[height<=1080]+bestaudio/best"
     downloaded_file, rc = await run_ytdlp(
-        build_cmd("youtube:consent=skip",
-                  "bestvideo[height<=1080]+bestaudio/best")
+        build_cmd("youtube:consent=skip", yt_format)
     )
 
     # Segmen googlevideo (HLS tv/ios) sering 403 dari IP datacenter VPS.
     # Client android (DASH progressive) jauh lebih toleran, kualitas ngedrop
     # ke yang tersedia (biasanya 360p-720p) -- lebih baik daripada gagal total.
+    # Resolusi tetap dihormati sebisanya (pakai yt_format kalau user pilih).
     if rc != 0 and downloaded_file is None and is_youtube:
         await render_status(ctx, "⚠️ HLS kena 403, coba android (kualitas lebih rendah)")
         downloaded_file, rc = await run_ytdlp(
-            build_cmd("youtube:player_client=android;consent=skip",
-                      "best[height<=720]/bestvideo[height<=720]+bestaudio/best")
+            build_cmd("youtube:player_client=android;consent=skip", yt_format)
         )
 
     if rc != 0:

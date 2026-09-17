@@ -40,6 +40,20 @@ def extract_url(message):
     return None
 
 
+def is_youtube_link(url):
+    if not url:
+        return False
+    domain = urlparse(url).netloc.lower()
+    return "youtu.be" in domain or "youtube.com" in domain
+
+
+def build_rename_keyboard(request_id):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ Rename File", callback_data=f"rename_yes:{request_id}")],
+        [InlineKeyboardButton("⏩ Pakai Nama Asli", callback_data=f"rename_no:{request_id}")],
+    ])
+
+
 def _media_size(replied):
     """Ambil ukuran file (bytes) dari pesan media Telegram, kalau ada."""
     if not replied:
@@ -205,10 +219,25 @@ async def mirror(client, message):
         [InlineKeyboardButton("📦 Zip & Upload", callback_data=f"upload_zip:{request_id}")],
     ])
 
-    status_msg = await message.reply(
-        "📁 Pilih nama file:",
-        reply_markup=rename_keyboard,
-    )
+    if is_youtube_link(url):
+        # YouTube: tanya resolusi dulu sebelum lanjut rename/upload.
+        yt_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("360p", callback_data=f"yt_res:{request_id}:360"),
+             InlineKeyboardButton("720p", callback_data=f"yt_res:{request_id}:720")],
+            [InlineKeyboardButton("1080p", callback_data=f"yt_res:{request_id}:1080"),
+             InlineKeyboardButton("📺 Max", callback_data=f"yt_res:{request_id}:max")],
+        ])
+        status_msg = await message.reply(
+            "🎬 **Pilih resolusi download:**\n\n"
+            "YouTube sekarang streaming dengan eksperimen SABR — tanpa pilihan "
+            "resolusi, bot biasanya cuma bisa dapat 360p. Pilih sesuai kebutuhan:",
+            reply_markup=yt_keyboard,
+        )
+    else:
+        status_msg = await message.reply(
+            "📁 Pilih nama file:",
+            reply_markup=rename_keyboard,
+        )
 
     ctx = {
         "status": status_msg,
@@ -442,3 +471,45 @@ async def terabox_callback(client, callback_query):
     # Hapus pending Terabox lama.
     pending_upload.pop(request_id, None)
     shutil.rmtree(work_dir, ignore_errors=True)
+
+
+# ---- Callback: pilihan resolusi YouTube (360/720/1080/max) ----
+YT_FORMATS = {
+    "360": "bestvideo[height<=360]+bestaudio/best",
+    "720": "bestvideo[height<=720]+bestaudio/best",
+    "1080": "bestvideo[height<=1080]+bestaudio/best",
+    "max": "bestvideo+bestaudio/best",
+}
+
+
+@app.on_callback_query(filters.regex(r"^yt_res:"))
+async def yt_resolution_callback(client, callback_query):
+    """
+    Menangani pilihan resolusi YouTube dari keyboard:
+    - simpan pilihan di ctx["yt_format"] (dipakai download_via_url)
+    - lanjut ke prompt rename (alias nama file) seperti flow normal.
+    """
+    try:
+        _prefix, request_id, res = callback_query.data.split(":", 2)
+    except ValueError:
+        return await callback_query.answer("Data tombol rusak.", show_alert=True)
+
+    task = pending_upload.get(request_id)
+    if not task:
+        return await callback_query.answer("❌ Task sudah expired", show_alert=True)
+
+    await callback_query.answer()
+
+    fmt = YT_FORMATS.get(res, "bestvideo[height<=1080]+bestaudio/best")
+    task["ctx"]["yt_format"] = fmt
+    task["yt_format"] = fmt
+
+    label = "Maksimum" if res == "max" else f"{res}p"
+    try:
+        await callback_query.message.edit_text(
+            f"🎬 Resolusi: **{label}** dipilih.\n\n"
+            "📁 Lanjut — pilih nama file:",
+            reply_markup=build_rename_keyboard(request_id),
+        )
+    except Exception:
+        pass
