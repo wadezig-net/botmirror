@@ -260,9 +260,12 @@ async def download_via_url(url, work_dir, ctx):
             ctx["process"] = None
         return downloaded_file, process.returncode
 
-    # Jalur utama: client tv/ios/android (kualitas penuh dulu).
+    # Jalur utama: client DEFAULT yt-dlp. JANGAN paksa player_client=...
+    # -- SABR experiment (#12482) bikin format tv/ios/android jadi tanpa URL
+    # (cuma sisa itag 18 / 360p). Default order (campuran tv,web,web_safari,
+    # dll) yang malah kasih format 1080p penuh di session/network ini.
     downloaded_file, rc = await run_ytdlp(
-        build_cmd("youtube:player_client=tv,ios,android;consent=skip",
+        build_cmd("youtube:consent=skip",
                   "bestvideo[height<=1080]+bestaudio/best")
     )
 
